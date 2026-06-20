@@ -8,6 +8,7 @@ import { ScaledPage } from '@/components/delta/scaled-page'
 import { leaderboard } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
+import { useVirtual } from '@/hooks/use-virtual'
 
 const SCOPES = ['All', 'My Batch', 'Cohort', 'Friends'] as const
 type Scope = (typeof SCOPES)[number]
@@ -39,6 +40,12 @@ export function LeaderboardPage() {
     }
     return base
   }, [scope, query, me])
+
+  // Virtualize the list — 1000 rows render as ~20 visible + overscan.
+  // Each leaderboard row is ~52px (py-2.5 content + border).
+  const { containerRef, visibleRange, totalHeight, offsetY } = useVirtual(list.length, 52, 10)
+  const [vStart, vEnd] = visibleRange
+  const visibleList = list.slice(vStart, vEnd + 1)
 
   const podium = list.slice(0, 3)
   // Visual order: 2nd (left), 1st (center), 3rd (right)
@@ -190,7 +197,7 @@ export function LeaderboardPage() {
             <span className="text-right">Score</span>
             <span className="text-right">Δ</span>
           </div>
-          <div className="flex-1 min-h-0 overflow-y-auto scroll-thin">
+          <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto scroll-thin" style={{ maxHeight: 'min(60vh, 520px)' }}>
             {list.length === 0 ? (
               <div className="min-h-[280px] grid place-items-center">
                 <EmptyState
@@ -204,15 +211,25 @@ export function LeaderboardPage() {
                 />
               </div>
             ) : (
-              list.map((l) => (
-                <div
-                  key={l.id}
-                  className={cn(
-                    ROW_GRID,
-                    'items-center px-4 py-2.5 border-b border-border/40 transition-colors',
-                    l.you ? 'bg-primary/10' : 'hover:bg-white/[0.03]'
-                  )}
-                >
+              /*
+               * Virtualized list: a full-height spacer gives the scrollbar the
+               * correct range, and only the visible window (+ overscan) of rows
+               * is actually rendered. Rows are offset by translateY so they
+               * land at the right scroll position.
+               */
+              <div style={{ height: totalHeight, position: 'relative' }}>
+                <div style={{ transform: `translateY(${offsetY}px)` }}>
+                  {visibleList.map((l) => {
+                    const idx = vStart + visibleList.indexOf(l)
+                    return (
+                  <div
+                    key={l.id}
+                    className={cn(
+                      ROW_GRID,
+                      'items-center px-4 py-2.5 border-b border-border/40 transition-colors',
+                      l.you ? 'bg-primary/10' : 'hover:bg-white/[0.03]'
+                    )}
+                  >
                   <span
                     className={cn(
                       'text-sm tabular text-center',
@@ -256,7 +273,10 @@ export function LeaderboardPage() {
                     )}
                   </span>
                 </div>
-              ))
+                    )
+                  })}
+                </div>
+              </div>
             )}
           </div>
         </GlassCard>
