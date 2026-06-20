@@ -38,7 +38,7 @@ export function useCanvasFit(
         (w - pad) / canvasWidth,
         (h - pad) / canvasHeight
       )
-      // Clamp to a sane floor so widgets don't get invisibly tiny.
+      // Clamp to a sane floor so components don't get invisibly tiny.
       setScale(Math.max(0.3, s))
     }
 
@@ -46,7 +46,7 @@ export function useCanvasFit(
     const ro = new ResizeObserver(compute)
     ro.observe(el)
     // Also recompute on viewport resize (covers the case where the container
-    // size doesn't change but the canvas height does — e.g. widgets added).
+    // size doesn't change but the canvas height does — e.g. components added).
     window.addEventListener('resize', compute)
     return () => {
       ro.disconnect()

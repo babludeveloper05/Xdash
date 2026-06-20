@@ -86,10 +86,10 @@ function Header({
 }
 
 /* ------------------------------------------------------------------ */
-/*  Widgets                                                            */
+/*  Components                                                            */
 /* ------------------------------------------------------------------ */
 
-export function WidgetGreeting() {
+export function ComponentGreeting() {
   const firstName = useStore((s) => s.profile.name).split(' ')[0]
   const streak = useStore((s) => s.streak)
   const dateStr = new Date().toLocaleDateString('en-US', {
@@ -122,7 +122,7 @@ export function WidgetGreeting() {
   )
 }
 
-export function WidgetStreak() {
+export function ComponentStreak() {
   const streak = useStore((s) => s.streak)
   const days = ['M', 'T', 'W', 'T', 'F', 'S', 'S']
   const today = todayIndex()
@@ -172,7 +172,7 @@ export function WidgetStreak() {
   )
 }
 
-export function WidgetNextClass() {
+export function ComponentNextClass() {
   const setTab = useStore((s) => s.setTab)
   const live = liveSessions.find((l) => l.isLive)
   const next = liveSessions.find((l) => !l.isLive) ?? liveSessions[0]
@@ -214,7 +214,7 @@ export function WidgetNextClass() {
   )
 }
 
-export function WidgetDailyGoal() {
+export function ComponentDailyGoal() {
   const hoursToday = useStore((s) => s.hoursToday)
   const dailyGoalHours = useStore((s) => s.dailyGoalHours)
   const setTab = useStore((s) => s.setTab)
@@ -249,7 +249,7 @@ export function WidgetDailyGoal() {
   )
 }
 
-export function WidgetSubjectRings() {
+export function ComponentSubjectRings() {
   const subjectProgress = useSubjectProgress()
   const core = SUBJECTS.slice(0, 3)
   return (
@@ -277,7 +277,7 @@ export function WidgetSubjectRings() {
   )
 }
 
-export function WidgetTestDue() {
+export function ComponentTestDue() {
   const setTab = useStore((s) => s.setTab)
   const due = tests
     .filter((t): t is typeof t & { deadlineHours: number } => t.deadlineHours !== null)
@@ -333,7 +333,7 @@ export function WidgetTestDue() {
   )
 }
 
-export function WidgetQuickNotes() {
+export function ComponentQuickNotes() {
   const quickScratch = useStore((s) => s.quickScratch)
   const setQuickScratch = useStore((s) => s.setQuickScratch)
   const notes = useStore((s) => s.notes)
@@ -363,7 +363,7 @@ export function WidgetQuickNotes() {
   )
 }
 
-export function WidgetLeaderPeek() {
+export function ComponentLeaderPeek() {
   const setTab = useStore((s) => s.setTab)
   const you = leaderboard.find((l) => l.you)!
   const top3 = leaderboard.slice(0, 3)
@@ -412,7 +412,7 @@ export function WidgetLeaderPeek() {
   )
 }
 
-export function WidgetRecentActivity() {
+export function ComponentRecentActivity() {
   const items = activity.slice(0, 5)
   return (
     <div className="flex flex-col h-full">
@@ -449,7 +449,7 @@ export function WidgetRecentActivity() {
   )
 }
 
-export function WidgetBatchRank() {
+export function ComponentBatchRank() {
   const you = leaderboard.find((l) => l.you)!
   const start = Math.max(0, you.rank - 2)
   const end = you.rank + 1
@@ -490,7 +490,7 @@ export function WidgetBatchRank() {
   )
 }
 
-export function WidgetLiveStatus() {
+export function ComponentLiveStatus() {
   const setTab = useStore((s) => s.setTab)
   const live = liveSessions.find((l) => l.isLive)
   const next = liveSessions.find((l) => !l.isLive) ?? liveSessions[0]
@@ -533,7 +533,7 @@ export function WidgetLiveStatus() {
   )
 }
 
-export function WidgetCustomCountdown() {
+export function ComponentCustomCountdown() {
   const date = useStore((s) => s.customCountdownDate)
   const label = useStore((s) => s.countdownLabel)
   const days = Math.max(
@@ -563,17 +563,17 @@ export function WidgetCustomCountdown() {
 /*  Registry                                                           */
 /* ------------------------------------------------------------------ */
 
-export const WIDGET_REGISTRY: Record<string, { title: string; render: () => ReactNode }> = {
-  greeting: { title: 'Greeting & Date', render: () => <WidgetGreeting /> },
-  streak: { title: 'Streak Tracker', render: () => <WidgetStreak /> },
-  nextClass: { title: 'Next Class', render: () => <WidgetNextClass /> },
-  dailyGoal: { title: 'Daily Goal', render: () => <WidgetDailyGoal /> },
-  subjectRings: { title: 'Subject Progress', render: () => <WidgetSubjectRings /> },
-  testDue: { title: 'Tests Due', render: () => <WidgetTestDue /> },
-  quickNotes: { title: 'Quick Notes', render: () => <WidgetQuickNotes /> },
-  leaderPeek: { title: 'Leaderboard Peek', render: () => <WidgetLeaderPeek /> },
-  recentActivity: { title: 'Recent Activity', render: () => <WidgetRecentActivity /> },
-  batchRank: { title: 'Batch Rank', render: () => <WidgetBatchRank /> },
-  liveStatus: { title: 'Live Status', render: () => <WidgetLiveStatus /> },
-  customCountdown: { title: 'Custom Countdown', render: () => <WidgetCustomCountdown /> },
+export const COMPONENT_REGISTRY: Record<string, { title: string; render: () => ReactNode }> = {
+  greeting: { title: 'Greeting & Date', render: () => <ComponentGreeting /> },
+  streak: { title: 'Streak Tracker', render: () => <ComponentStreak /> },
+  nextClass: { title: 'Next Class', render: () => <ComponentNextClass /> },
+  dailyGoal: { title: 'Daily Goal', render: () => <ComponentDailyGoal /> },
+  subjectRings: { title: 'Subject Progress', render: () => <ComponentSubjectRings /> },
+  testDue: { title: 'Tests Due', render: () => <ComponentTestDue /> },
+  quickNotes: { title: 'Quick Notes', render: () => <ComponentQuickNotes /> },
+  leaderPeek: { title: 'Leaderboard Peek', render: () => <ComponentLeaderPeek /> },
+  recentActivity: { title: 'Recent Activity', render: () => <ComponentRecentActivity /> },
+  batchRank: { title: 'Batch Rank', render: () => <ComponentBatchRank /> },
+  liveStatus: { title: 'Live Status', render: () => <ComponentLiveStatus /> },
+  customCountdown: { title: 'Custom Countdown', render: () => <ComponentCustomCountdown /> },
 }

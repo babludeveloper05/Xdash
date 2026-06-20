@@ -2,7 +2,7 @@
 
 import { motion, useReducedMotion } from 'framer-motion'
 import { useStore } from '@/lib/store'
-import { WIDGET_REGISTRY } from './widget-content'
+import { COMPONENT_REGISTRY } from './dashboard-components'
 import { GlassCard, PrimaryButton, EmptyState } from '../ui'
 import { Sparkles, LayoutGrid, Pencil } from 'lucide-react'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -11,10 +11,10 @@ import { useCanvasFit } from '@/hooks/use-canvas-fit'
 const CANVAS_WIDTH = 1448
 
 export function HomePage() {
-  const widgets = useStore((s) => s.widgets)
+  const components = useStore((s) => s.components)
   const setTab = useStore((s) => s.setTab)
   const reduce = useReducedMotion() ?? false
-  const canvasHeight = widgets.reduce((m, w) => Math.max(m, w.y + w.h), 0) + 56
+  const canvasHeight = components.reduce((m, w) => Math.max(m, w.y + w.h), 0) + 56
   const { ref, scale } = useCanvasFit(CANVAS_WIDTH, canvasHeight, 32)
 
   return (
@@ -29,11 +29,11 @@ export function HomePage() {
           from { opacity: 0; transform: translateY(8px) scale(0.985); }
           to   { opacity: 1; transform: translateY(0)   scale(1); }
         }
-        .delta-widget-enter { animation: deltaWidgetIn 0.28s cubic-bezier(0.22,1,0.36,1) both; }
+        .delta-component-enter { animation: deltaWidgetIn 0.28s cubic-bezier(0.22,1,0.36,1) both; }
       `}</style>
 
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex-1 min-h-0">
-        {widgets.length === 0 ? (
+        {components.length === 0 ? (
           <EmptyDashboard onOpen={() => setTab('playground')} />
         ) : (
           /*
@@ -56,10 +56,10 @@ export function HomePage() {
                 flexShrink: 0,
               }}
             >
-              {widgets.map((w, i) => (
+              {components.map((w, i) => (
                 <GlassCard
                   key={w.id}
-                  className="absolute p-4 group delta-widget-enter"
+                  className="absolute p-4 group delta-component-enter"
                   style={{
                     left: w.x,
                     top: w.y,
@@ -70,7 +70,7 @@ export function HomePage() {
                   }}
                 >
                   <div className="h-full overflow-hidden">
-                    {WIDGET_REGISTRY[w.type]?.render()}
+                    {COMPONENT_REGISTRY[w.type]?.render()}
                   </div>
                   <button
                     onClick={() => setTab('playground')}
@@ -100,7 +100,7 @@ function EmptyDashboard({ onOpen }: { onOpen: () => void }) {
         <EmptyState
           icon={<LayoutGrid className="size-6" />}
           title="Your dashboard is empty"
-          hint="Head to the Playground to add widgets and arrange your personalized command center."
+          hint="Head to the Playground to add components and arrange your personalized command center."
           cta={
             <PrimaryButton onClick={onOpen} className="mt-1">
               <Sparkles className="size-4" /> Open Playground

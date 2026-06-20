@@ -7,8 +7,8 @@ import {
   Search, LayoutGrid, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
-import { useStore, type WidgetState } from '@/lib/store'
-import { WIDGET_REGISTRY } from './widget-content'
+import { useStore, type ComponentState } from '@/lib/store'
+import { COMPONENT_REGISTRY } from './dashboard-components'
 import {
   GlassCard, GhostButton, PrimaryButton, EmptyState,
 } from '../ui'
@@ -49,14 +49,14 @@ function isInteractive(target: EventTarget | null): boolean {
 }
 
 export function PlaygroundPage() {
-  const widgets = useStore((s) => s.widgets)
+  const components = useStore((s) => s.components)
   const gridMode = useStore((s) => s.gridMode)
   const setGridMode = useStore((s) => s.setGridMode)
-  const updateWidget = useStore((s) => s.updateWidget)
+  const updateComponent = useStore((s) => s.updateComponent)
   const bringToFront = useStore((s) => s.bringToFront)
-  const removeWidget = useStore((s) => s.removeWidget)
-  const addWidget = useStore((s) => s.addWidget)
-  const resetWidgets = useStore((s) => s.resetWidgets)
+  const removeComponent = useStore((s) => s.removeComponent)
+  const addComponent = useStore((s) => s.addComponent)
+  const resetComponents = useStore((s) => s.resetComponents)
   const setTab = useStore((s) => s.setTab)
 
   const canvasRef = useRef<HTMLDivElement>(null)
@@ -68,15 +68,15 @@ export function PlaygroundPage() {
 
   const canvasWidth = Math.max(
     CANVAS_BASE_W,
-    ...widgets.map((w) => w.x + w.w + 48),
+    ...components.map((w) => w.x + w.w + 48),
   )
   const canvasHeight = Math.max(
     600,
-    ...widgets.map((w) => w.y + w.h + 48),
+    ...components.map((w) => w.y + w.h + 48),
   )
 
   const startDrag = useCallback(
-    (e: React.PointerEvent, w: WidgetState) => {
+    (e: React.PointerEvent, w: ComponentState) => {
       e.preventDefault()
       e.stopPropagation()
       bringToFront(w.id)
@@ -94,7 +94,7 @@ export function PlaygroundPage() {
         const dy = ev.clientY - startY
         const nx = Math.max(0, Math.min(cw - w.w, ox + dx))
         const ny = Math.max(0, Math.min(ch - w.h, oy + dy))
-        updateWidget(w.id, { x: nx, y: ny })
+        updateComponent(w.id, { x: nx, y: ny })
       }
       const up = () => {
         setDragId(null)
@@ -104,11 +104,11 @@ export function PlaygroundPage() {
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
     },
-    [bringToFront, updateWidget, canvasHeight],
+    [bringToFront, updateComponent, canvasHeight],
   )
 
   const startResize = useCallback(
-    (e: React.PointerEvent, w: WidgetState, dir: ResizeDir) => {
+    (e: React.PointerEvent, w: ComponentState, dir: ResizeDir) => {
       e.preventDefault()
       e.stopPropagation()
       bringToFront(w.id)
@@ -148,7 +148,7 @@ export function PlaygroundPage() {
             ny = 0
           }
         }
-        updateWidget(w.id, { x: nx, y: ny, w: nw, h: nh })
+        updateComponent(w.id, { x: nx, y: ny, w: nw, h: nh })
       }
       const up = () => {
         window.removeEventListener('pointermove', move)
@@ -157,22 +157,22 @@ export function PlaygroundPage() {
       window.addEventListener('pointermove', move)
       window.addEventListener('pointerup', up)
     },
-    [bringToFront, updateWidget],
+    [bringToFront, updateComponent],
   )
 
   const nudge = useCallback(
     (id: string, dx: number, dy: number) => {
-      const w = widgets.find((x) => x.id === id)
+      const w = components.find((x) => x.id === id)
       if (!w) return
       const cw = canvasRef.current?.clientWidth ?? CANVAS_BASE_W
       const nx = Math.max(0, Math.min(cw - w.w, w.x + dx))
       const ny = Math.max(0, w.y + dy)
-      updateWidget(id, { x: nx, y: ny })
+      updateComponent(id, { x: nx, y: ny })
     },
-    [widgets, updateWidget],
+    [components, updateComponent],
   )
 
-  // Keyboard: Esc closes picker / deselects; Delete removes selected widget.
+  // Keyboard: Esc closes picker / deselects; Delete removes selected component.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (pickerOpen) {
@@ -187,13 +187,13 @@ export function PlaygroundPage() {
         if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || (el as HTMLElement).isContentEditable)) {
           return
         }
-        removeWidget(selectedId)
+        removeComponent(selectedId)
         setSelectedId(null)
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [pickerOpen, selectedId, removeWidget])
+  }, [pickerOpen, selectedId, removeComponent])
 
   const onCanvasPointerDown = (e: React.PointerEvent) => {
     if (e.target === e.currentTarget) {
@@ -201,7 +201,7 @@ export function PlaygroundPage() {
     }
   }
 
-  const filteredTypes = Object.entries(WIDGET_REGISTRY).filter(
+  const filteredTypes = Object.entries(COMPONENT_REGISTRY).filter(
     ([type, def]) =>
       type.toLowerCase().includes(paletteQuery.toLowerCase()) ||
       def.title.toLowerCase().includes(paletteQuery.toLowerCase())
@@ -230,11 +230,11 @@ export function PlaygroundPage() {
             {gridMode ? <LayoutGrid className="size-3.5" /> : <Move className="size-3.5" />}
             {gridMode ? 'Grid' : 'Free'}
           </button>
-          <GhostButton onClick={resetWidgets}>
+          <GhostButton onClick={resetComponents}>
             <RotateCcw className="size-3.5" /> Reset
           </GhostButton>
           <GhostButton onClick={() => setPickerOpen(true)}>
-            <Plus className="size-3.5" /> Add widget
+            <Plus className="size-3.5" /> Add component
           </GhostButton>
           <PrimaryButton onClick={() => setTab('home')}>
             <Check className="size-3.5" /> Done
@@ -242,15 +242,15 @@ export function PlaygroundPage() {
         </div>
       </motion.div>
 
-      {widgets.length === 0 ? (
+      {components.length === 0 ? (
         <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex-1 grid place-items-center p-5">
           <EmptyState
             icon={<LayoutGrid className="size-6" />}
-            title="No widgets yet"
-            hint="Add your first widget to start building your dashboard. Drag, resize, and arrange freely on the canvas."
+            title="No components yet"
+            hint="Add your first component to start building your dashboard. Drag, resize, and arrange freely on the canvas."
             cta={
               <PrimaryButton onClick={() => setPickerOpen(true)}>
-                <Plus className="size-3.5" /> Add your first widget
+                <Plus className="size-3.5" /> Add your first component
               </PrimaryButton>
             }
           />
@@ -262,14 +262,14 @@ export function PlaygroundPage() {
           className="p-5 grid gap-4"
           style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}
         >
-          {widgets.map((w) => (
+          {components.map((w) => (
             <GlassCard
               key={w.id}
               className="group relative p-5"
               style={{ minHeight: w.type === 'greeting' ? 96 : 200 }}
             >
-              <RemoveBtn onClick={() => removeWidget(w.id)} />
-              <div className="h-full">{WIDGET_REGISTRY[w.type]?.render()}</div>
+              <RemoveBtn onClick={() => removeComponent(w.id)} />
+              <div className="h-full">{COMPONENT_REGISTRY[w.type]?.render()}</div>
             </GlassCard>
           ))}
         </motion.div>
@@ -283,12 +283,12 @@ export function PlaygroundPage() {
           >
             {/* Desktop hint */}
             <p className="absolute top-3 right-4 z-10 text-[10px] text-muted-foreground/60 hidden @lg:block pointer-events-none">
-              Drag any widget · resize from edges · Esc to deselect
+              Drag any component · resize from edges · Esc to deselect
             </p>
 
-            {widgets.map((w) => {
+            {components.map((w) => {
               const isSelected = selectedId === w.id
-              const def = WIDGET_REGISTRY[w.type]
+              const def = COMPONENT_REGISTRY[w.type]
               return (
                 <GlassCard
                   key={w.id}
@@ -332,8 +332,8 @@ export function PlaygroundPage() {
                       )}
                     >
                       <ToolbarBtn
-                        label="Delete widget"
-                        onClick={() => { removeWidget(w.id); setSelectedId(null) }}
+                        label="Delete component"
+                        onClick={() => { removeComponent(w.id); setSelectedId(null) }}
                         danger
                       >
                         <Trash2 className="size-3.5" />
@@ -361,7 +361,7 @@ export function PlaygroundPage() {
                     </div>
                   )}
 
-                  {/* Widget body */}
+                  {/* Component body */}
                   <div className="h-full pt-1.5 overflow-hidden">
                     {def?.render()}
                   </div>
@@ -386,7 +386,7 @@ export function PlaygroundPage() {
         </motion.div>
       )}
 
-      {/* Widget picker modal */}
+      {/* Component picker modal */}
       {pickerOpen && (
         <div
           className="fixed inset-0 z-[80] grid place-items-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-150"
@@ -399,9 +399,9 @@ export function PlaygroundPage() {
           >
             <div className="flex items-center justify-between mb-4">
               <div>
-                <p className="text-sm font-medium">Add a widget</p>
+                <p className="text-sm font-medium">Add a component</p>
                 <p className="text-[11px] text-muted-foreground">
-                  Pick a widget to drop onto your canvas
+                  Pick a component to drop onto your canvas
                 </p>
               </div>
               <button
@@ -417,7 +417,7 @@ export function PlaygroundPage() {
               <input
                 value={paletteQuery}
                 onChange={(e) => setPaletteQuery(e.target.value)}
-                placeholder="Search widgets…"
+                placeholder="Search components…"
                 className="w-full rounded-lg bg-white/5 border border-border pl-9 pr-3 py-2 text-sm outline-none focus:border-primary/40 transition-colors"
                 autoFocus
               />
@@ -425,14 +425,14 @@ export function PlaygroundPage() {
             <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 overflow-y-auto scroll-thin pr-1">
               {filteredTypes.length === 0 ? (
                 <p className="col-span-2 text-center text-xs text-muted-foreground py-8">
-                  No widgets match your search.
+                  No components match your search.
                 </p>
               ) : (
                 filteredTypes.map(([type, def]) => (
                   <button
                     key={type}
                     onClick={() => {
-                      addWidget(type)
+                      addComponent(type)
                       setPickerOpen(false)
                       setPaletteQuery('')
                     }}
@@ -471,7 +471,7 @@ function RemoveBtn({ onClick }: { onClick: () => void }) {
       onClick={onClick}
       onPointerDown={(e) => e.stopPropagation()}
       className="absolute top-1.5 right-1.5 z-10 grid place-items-center size-6 rounded-md text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-destructive/20 hover:text-destructive transition-opacity"
-      aria-label="Remove widget"
+      aria-label="Remove component"
     >
       <X className="size-3.5" />
     </button>

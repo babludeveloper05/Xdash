@@ -20,7 +20,7 @@ export function SettingsPage() {
   const customCountdownDate = useStore((s) => s.customCountdownDate)
   const countdownLabel = useStore((s) => s.countdownLabel)
   const setCountdown = useStore((s) => s.setCountdown)
-  const resetWidgets = useStore((s) => s.resetWidgets)
+  const resetComponents = useStore((s) => s.resetComponents)
   const setTab = useStore((s) => s.setTab)
   const profile = useStore((s) => s.profile)
   const setProfile = useStore((s) => s.setProfile)
@@ -202,7 +202,7 @@ export function SettingsPage() {
             <Field
               label="Countdown label"
               value={labelDraft}
-              hint="Shown on the countdown widget (e.g. Exam Day, Final Test)"
+              hint="Shown on the countdown component (e.g. Exam Day, Final Test)"
               onChange={(v) => {
                 setLabelDraft(v)
                 setCountdown(v || 'Exam Day', customCountdownDate)
@@ -291,7 +291,7 @@ export function SettingsPage() {
             </div>
             <Row
               label="Customize dashboard"
-              hint="Add widgets, drag, resize & arrange your home"
+              hint="Add components, drag, resize & arrange your home"
             >
               <GhostButton onClick={() => setTab('playground')}>
                 <Sparkles className="size-3.5" /> Open Playground
@@ -309,7 +309,7 @@ export function SettingsPage() {
         >
           <div className="space-y-3">
             <Row
-              label="Reset widget layout"
+              label="Reset component layout"
               hint="Restore the default home dashboard arrangement"
               dangerAction
             >
@@ -317,7 +317,7 @@ export function SettingsPage() {
                 <div className="flex items-center gap-2">
                   <GhostButton onClick={() => setConfirmReset(false)}>Cancel</GhostButton>
                   <button
-                    onClick={() => { resetWidgets(); setConfirmReset(false); flash() }}
+                    onClick={() => { resetComponents(); setConfirmReset(false); flash() }}
                     className="inline-flex items-center gap-1.5 rounded-full bg-warning/15 text-warning border border-warning/30 px-4 py-2 text-xs font-medium hover:bg-warning/25 transition-colors"
                   >
                     <RotateCcw className="size-3.5" /> Yes, reset
@@ -332,7 +332,7 @@ export function SettingsPage() {
 
             <Row
               label="Clear all local data"
-              hint="Resets progress, notes, history and widgets on this device"
+              hint="Resets progress, notes, history and components on this device"
               dangerAction
             >
               {confirmClear ? (

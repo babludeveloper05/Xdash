@@ -76,7 +76,7 @@ export interface DoubtItem {
   answers: DoubtAnswer[]
 }
 
-export interface WidgetState {
+export interface ComponentState {
   id: string
   type: string
   x: number
@@ -144,7 +144,7 @@ function seedProgress(): Record<string, VideoProgress> {
   return map
 }
 
-const DEFAULT_WIDGETS: WidgetState[] = [
+const DEFAULT_COMPONENTS: ComponentState[] = [
   { id: 'w-greeting', type: 'greeting', x: 24, y: 24, w: 1124, h: 96, z: 1 },
   { id: 'w-live', type: 'liveStatus', x: 1164, y: 24, w: 260, h: 96, z: 1 },
   { id: 'w-streak', type: 'streak', x: 24, y: 140, w: 220, h: 224, z: 1 },
@@ -254,15 +254,15 @@ interface DeltaState {
   history: HistoryRow[]
   submitTest: (row: Omit<HistoryRow, 'id' | 'daysAgo'>) => void
 
-  // widgets
-  widgets: WidgetState[]
+  // components
+  components: ComponentState[]
   gridMode: boolean
   setGridMode: (v: boolean) => void
-  updateWidget: (id: string, patch: Partial<WidgetState>) => void
+  updateComponent: (id: string, patch: Partial<ComponentState>) => void
   bringToFront: (id: string) => void
-  removeWidget: (id: string) => void
-  addWidget: (type: string) => void
-  resetWidgets: () => void
+  removeComponent: (id: string) => void
+  addComponent: (type: string) => void
+  resetComponents: () => void
 
   // video modal / pip
   theaterVideoId: string | null
@@ -460,28 +460,28 @@ export const useStore = create<DeltaState>()(
           history: [{ ...row, id: `hist-${Date.now()}`, daysAgo: 0 }, ...s.history],
         })),
 
-      widgets: DEFAULT_WIDGETS,
+      components: DEFAULT_COMPONENTS,
       gridMode: false,
       setGridMode: (v) => set({ gridMode: v }),
-      updateWidget: (id, patch) =>
-        set((s) => ({ widgets: s.widgets.map((w) => (w.id === id ? { ...w, ...patch } : w)) })),
+      updateComponent: (id, patch) =>
+        set((s) => ({ components: s.components.map((w) => (w.id === id ? { ...w, ...patch } : w)) })),
       bringToFront: (id) =>
         set((s) => {
-          const maxZ = Math.max(...s.widgets.map((w) => w.z))
-          return { widgets: s.widgets.map((w) => (w.id === id ? { ...w, z: maxZ + 1 } : w)) }
+          const maxZ = Math.max(...s.components.map((w) => w.z))
+          return { components: s.components.map((w) => (w.id === id ? { ...w, z: maxZ + 1 } : w)) }
         }),
-      removeWidget: (id) => set((s) => ({ widgets: s.widgets.filter((w) => w.id !== id) })),
-      addWidget: (type) =>
+      removeComponent: (id) => set((s) => ({ components: s.components.filter((w) => w.id !== id) })),
+      addComponent: (type) =>
         set((s) => {
-          const maxZ = s.widgets.length ? Math.max(...s.widgets.map((w) => w.z)) : 1
+          const maxZ = s.components.length ? Math.max(...s.components.map((w) => w.z)) : 1
           return {
-            widgets: [
-              ...s.widgets,
+            components: [
+              ...s.components,
               { id: `w-${type}-${Date.now()}`, type, x: 80, y: 200, w: 260, h: 220, z: maxZ + 1 },
             ],
           }
         }),
-      resetWidgets: () => set({ widgets: DEFAULT_WIDGETS, gridMode: false }),
+      resetComponents: () => set({ components: DEFAULT_COMPONENTS, gridMode: false }),
 
       theaterVideoId: null,
       pipVideoId: null,
@@ -508,7 +508,7 @@ export const useStore = create<DeltaState>()(
         notes: s.notes,
         quickScratch: s.quickScratch,
         history: s.history,
-        widgets: s.widgets,
+        components: s.components,
         gridMode: s.gridMode,
         onboardingDone: s.onboardingDone,
         liveAttended: s.liveAttended,
