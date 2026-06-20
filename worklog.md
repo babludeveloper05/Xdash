@@ -574,3 +574,31 @@ Stage Summary:
 - No changes to routing, store shape (beyond the `direction` addition), page prop signatures, `globals.css` tokens, or Tailwind config — motion-layer only, per the brief's constraints.
 - All 8 Definition-of-Done criteria verified in-browser via Agent Browser + MutationObserver.
 - Screenshots saved: `verify-library.png`, `verify-final.png`.
+
+---
+Task ID: settings-persistence-fix
+Agent: main (Z.ai Code)
+Task: Fix the Settings page data-loss bug (Save button was a no-op; fields committed on blur only) flagged as the #1 bug in the earlier project analysis. Also wire the unpersisted notification toggles to the store.
+
+Work Log:
+- Root cause: `settings.tsx` `Field` component was uncontrolled (`defaultValue` + `onBlur`), and the Account "Save changes" button's `onClick` only called `flash()` — it never committed the draft. So typing in a field and clicking Save *without blurring first* silently discarded the edit while flashing a false "Saved" badge. The Countdown label had the same blur-dependency. The notification toggles lived in unpersisted `useState` and reset on every reload.
+- Store (`src/lib/store.ts`): added `NotifState` interface (exported), `notifications` slice with default `{live:true, tests:true, streak:true, weekly:false}`, `setNotifications(patch)` action, and added `notifications` to `partialize`. No `version` bump needed — Zustand's default merge fills the new key from initial state for existing users, so no data wipe.
+- Settings (`src/components/delta/pages/settings.tsx`):
+  - Converted `Field` from uncontrolled (`defaultValue`/`onBlur`) to controlled (`value`/`onChange`).
+  - Account section: added a local `draft: UserProfile` state; all 6 fields are controlled by the draft; "Save changes" now calls `saveAccount()` which commits `setProfile(draft)` + flashes. Button is `disabled={!draftDirty}` so it's only clickable when there are real changes (visual feedback that the commit path is real).
+  - Countdown label: controlled via `labelDraft` local state committed on each `onChange` (no blur dependency).
+  - Notifications: replaced local `notif` state with store-backed `notifications` + `setNotifications`; toggles now persist.
+
+Agent Browser verification:
+- Typed "Test User QA" in Display name → field updated (controlled) → Save button went from `[disabled]` to enabled → clicked Save WITHOUT blurring → no errors, "Saved" badge appeared.
+- localStorage check: `profile.name` = "Test User QA", `notifications` present.
+- Full page reload → navigated to Settings → Display name STILL "Test User QA" (survived reload). Bug fixed.
+- Flipped "Weekly progress" toggle → localStorage `weekly: false → true`. Reloaded → toggle STILL `checked=true`. Notification persistence fixed.
+- 0 errors in dev.log throughout; all compiles clean.
+- Restored clean state (name back to "Aryan Sharma", weekly back to false) before closing.
+
+Stage Summary:
+- 2 files modified: `src/lib/store.ts` (+NotifState interface/slice/setter/partialize), `src/components/delta/pages/settings.tsx` (controlled Field + draft/Save + store-backed notifications).
+- The #1 data-loss bug from the analysis is resolved: every Settings edit now has a real, verified persistence path.
+- Bonus: notification preferences now survive reloads (previously reset every time).
+- No store version bump → no migration risk for existing user data.

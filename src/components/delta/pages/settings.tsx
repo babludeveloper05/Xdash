@@ -9,16 +9,9 @@ import {
 import {
   GlassCard, PageHeader, Toggle, Avatar, PrimaryButton, GhostButton, Badge,
 } from '@/components/delta/ui'
-import { useStore } from '@/lib/store'
+import { useStore, type UserProfile } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
-
-interface NotifState {
-  live: boolean
-  tests: boolean
-  streak: boolean
-  weekly: boolean
-}
 
 export function SettingsPage() {
   const dailyGoalHours = useStore((s) => s.dailyGoalHours)
@@ -30,10 +23,26 @@ export function SettingsPage() {
   const setTab = useStore((s) => s.setTab)
   const profile = useStore((s) => s.profile)
   const setProfile = useStore((s) => s.setProfile)
+  const notifications = useStore((s) => s.notifications)
+  const setNotifications = useStore((s) => s.setNotifications)
 
-  const [notif, setNotif] = useState<NotifState>({
-    live: true, tests: true, streak: true, weekly: false,
-  })
+  // Account section: edit a local draft, commit to the store only on Save.
+  // Previously the fields were uncontrolled (defaultValue + onBlur) and the
+  // Save button was a no-op, so typing then clicking Save *without blurring
+  // first* silently lost edits while flashing a false "Saved" badge.
+  const [draft, setDraft] = useState<UserProfile>(profile)
+  const draftDirty =
+    draft.name !== profile.name ||
+    draft.examName !== profile.examName ||
+    draft.targetYear !== profile.targetYear ||
+    draft.batch !== profile.batch ||
+    draft.location !== profile.location ||
+    draft.bio !== profile.bio
+
+  // Countdown label: controlled local state committed on each change so there
+  // is no blur dependency. (The date input was already onChange-driven.)
+  const [labelDraft, setLabelDraft] = useState(countdownLabel)
+
   const [savedFlash, setSavedFlash] = useState(false)
   const [confirmClear, setConfirmClear] = useState(false)
   const [confirmReset, setConfirmReset] = useState(false)
@@ -42,6 +51,12 @@ export function SettingsPage() {
   function flash() {
     setSavedFlash(true)
     window.setTimeout(() => setSavedFlash(false), 1400)
+  }
+
+  function saveAccount() {
+    if (!draftDirty) return
+    setProfile(draft)
+    flash()
   }
 
   const daysRemaining = Math.max(
@@ -99,40 +114,40 @@ export function SettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field
               label="Display name"
-              defaultValue={profile.name}
-              onBlur={(v) => { setProfile({ name: v }); flash() }}
+              value={draft.name}
+              onChange={(v) => setDraft((d) => ({ ...d, name: v }))}
             />
             <Field
               label="Exam name"
-              defaultValue={profile.examName}
-              onBlur={(v) => { setProfile({ examName: v }); flash() }}
+              value={draft.examName}
+              onChange={(v) => setDraft((d) => ({ ...d, examName: v }))}
             />
             <Field
               label="Target year"
-              defaultValue={profile.targetYear}
-              onBlur={(v) => { setProfile({ targetYear: v }); flash() }}
+              value={draft.targetYear}
+              onChange={(v) => setDraft((d) => ({ ...d, targetYear: v }))}
             />
             <Field
               label="Batch"
-              defaultValue={profile.batch}
-              onBlur={(v) => { setProfile({ batch: v }); flash() }}
+              value={draft.batch}
+              onChange={(v) => setDraft((d) => ({ ...d, batch: v }))}
             />
             <Field
               label="Location"
-              defaultValue={profile.location}
-              onBlur={(v) => { setProfile({ location: v }); flash() }}
+              value={draft.location}
+              onChange={(v) => setDraft((d) => ({ ...d, location: v }))}
               className="sm:col-span-2"
             />
             <Field
               label="Bio"
               textarea
-              defaultValue={profile.bio}
-              onBlur={(v) => { setProfile({ bio: v }); flash() }}
+              value={draft.bio}
+              onChange={(v) => setDraft((d) => ({ ...d, bio: v }))}
               className="sm:col-span-2"
             />
           </div>
           <div className="flex justify-end mt-4">
-            <PrimaryButton onClick={flash}>
+            <PrimaryButton onClick={saveAccount} disabled={!draftDirty}>
               <Check className="size-3.5" /> Save changes
             </PrimaryButton>
           </div>
@@ -185,9 +200,13 @@ export function SettingsPage() {
           <div className="space-y-3">
             <Field
               label="Countdown label"
-              defaultValue={countdownLabel}
+              value={labelDraft}
               hint="Shown on the countdown widget (e.g. Exam Day, Final Test)"
-              onBlur={(v) => { setCountdown(v || 'Exam Day', customCountdownDate); flash() }}
+              onChange={(v) => {
+                setLabelDraft(v)
+                setCountdown(v || 'Exam Day', customCountdownDate)
+                flash()
+              }}
             />
             <div>
               <span className="text-[11px] text-muted-foreground">Target date</span>
@@ -225,26 +244,26 @@ export function SettingsPage() {
             <NotifRow
               label="Live class reminders"
               hint="A nudge 10 minutes before a live class starts"
-              checked={notif.live}
-              onChange={(v) => { setNotif((n) => ({ ...n, live: v })); flash() }}
+              checked={notifications.live}
+              onChange={(v) => { setNotifications({ live: v }); flash() }}
             />
             <NotifRow
               label="Test deadlines"
               hint="A reminder 24 hours before any test expires"
-              checked={notif.tests}
-              onChange={(v) => { setNotif((n) => ({ ...n, tests: v })); flash() }}
+              checked={notifications.tests}
+              onChange={(v) => { setNotifications({ tests: v }); flash() }}
             />
             <NotifRow
               label="Streak alerts"
               hint="Don't break the chain — a daily study reminder"
-              checked={notif.streak}
-              onChange={(v) => { setNotif((n) => ({ ...n, streak: v })); flash() }}
+              checked={notifications.streak}
+              onChange={(v) => { setNotifications({ streak: v }); flash() }}
             />
             <NotifRow
               label="Weekly progress"
               hint="A Sunday digest of your week"
-              checked={notif.weekly}
-              onChange={(v) => { setNotif((n) => ({ ...n, weekly: v })); flash() }}
+              checked={notifications.weekly}
+              onChange={(v) => { setNotifications({ weekly: v }); flash() }}
             />
           </div>
         </SectionCard>
@@ -422,11 +441,11 @@ function NotifRow({
 }
 
 function Field({
-  label, defaultValue, onBlur, textarea, hint, className,
+  label, value, onChange, textarea, hint, className,
 }: {
   label: string
-  defaultValue: string
-  onBlur?: (value: string) => void
+  value: string
+  onChange: (value: string) => void
   textarea?: boolean
   hint?: string
   className?: string
@@ -436,15 +455,15 @@ function Field({
       <span className="text-[11px] text-muted-foreground">{label}</span>
       {textarea ? (
         <textarea
-          defaultValue={defaultValue}
-          onBlur={(e) => onBlur?.(e.target.value)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
           rows={3}
           className="mt-1 w-full resize-none rounded-lg bg-white/5 border border-border px-3 py-2 text-sm outline-none focus:border-primary/40 transition-colors scroll-thin"
         />
       ) : (
         <input
-          defaultValue={defaultValue}
-          onBlur={(e) => onBlur?.(e.target.value)}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
           className="mt-1 w-full rounded-lg bg-white/5 border border-border px-3 py-2 text-sm outline-none focus:border-primary/40 transition-colors"
         />
       )}

@@ -37,6 +37,14 @@ export interface UserProfile {
   examName: string
 }
 
+/** Notification preferences — persisted so toggles survive reloads. */
+export interface NotifState {
+  live: boolean
+  tests: boolean
+  streak: boolean
+  weekly: boolean
+}
+
 export interface WidgetState {
   id: string
   type: string
@@ -148,6 +156,10 @@ interface DeltaState {
   profile: UserProfile
   setProfile: (patch: Partial<UserProfile>) => void
 
+  // notification preferences
+  notifications: NotifState
+  setNotifications: (patch: Partial<NotifState>) => void
+
   // progress
   videoProgress: Record<string, VideoProgress>
   setVideoProgress: (id: string, fraction: number) => void
@@ -240,6 +252,10 @@ export const useStore = create<DeltaState>()(
         examName: 'My Exam',
       },
       setProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
+
+      notifications: { live: true, tests: true, streak: true, weekly: false },
+      setNotifications: (patch) =>
+        set((s) => ({ notifications: { ...s.notifications, ...patch } })),
 
       videoProgress: seedProgress(),
       setVideoProgress: (id, fraction) =>
@@ -353,6 +369,7 @@ export const useStore = create<DeltaState>()(
         onboardingDone: s.onboardingDone,
         liveAttended: s.liveAttended,
         profile: s.profile,
+        notifications: s.notifications,
       }),
     }
   )
