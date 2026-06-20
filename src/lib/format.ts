@@ -18,29 +18,35 @@ export function fmtDuration(sec: number): string {
 
 /**
  * Format a deadline given in hours.
- *   <1h   → "<1h left"
- *   <24h  → "Xh left"
- *   else  → "Xd left"
+ *   <1h     → "<1h left"
+ *   <24h    → "Xh left"
+ *   <48h    → "1d Xh left"
+ *   else    → "Xd left" (Math.floor)
  */
 export function fmtDeadline(hours: number): string {
   if (hours < 1) return '<1h left'
   if (hours < 24) return `${Math.round(hours)}h left`
-  return `${Math.round(hours / 24)}d left`
+  if (hours < 48) {
+    const d = Math.floor(hours / 24)
+    const h = Math.round(hours % 24)
+    return h > 0 ? `${d}d ${h}h left` : `${d}d left`
+  }
+  return `${Math.floor(hours / 24)}d left`
 }
 
 /**
  * Format a relative time given in minutes.
  *   0       → "just now"
- *   <60     → "Xm ago"
- *   <1440   → "Xh ago"
- *   else    → "Xd ago"
+ *   <60     → "Xm ago" (Math.floor)
+ *   <1440   → "Xh ago" (Math.floor)
+ *   else    → "Xd ago" (Math.floor)
  */
 export function fmtAgo(minutes: number): string {
   if (minutes <= 0) return 'just now'
   if (minutes < 1) return '<1m ago'
-  if (minutes < 60) return `${Math.round(minutes)}m ago`
-  if (minutes < 1440) return `${Math.round(minutes / 60)}h ago`
-  return `${Math.round(minutes / 1440)}d ago`
+  if (minutes < 60) return `${Math.floor(minutes)}m ago`
+  if (minutes < 1440) return `${Math.floor(minutes / 60)}h ago`
+  return `${Math.floor(minutes / 1440)}d ago`
 }
 
 /**

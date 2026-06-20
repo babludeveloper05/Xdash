@@ -14,29 +14,8 @@ import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore } from '@/lib/store'
 import { liveSessions } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
+import { subjectGradient, subjectTone } from '@/lib/subjects'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
-
-/* Warm subject tones — no indigo/blue, kept on the amber→green→rose axis. */
-const SUBJECT_GRADIENT: Record<string, string> = {
-  Physics:
-    'radial-gradient(120% 100% at 0% 0%, oklch(0.52 0.13 55 / 0.55) 0%, transparent 55%), radial-gradient(90% 80% at 100% 100%, oklch(0.42 0.10 30 / 0.45) 0%, transparent 55%), linear-gradient(135deg, oklch(0.30 0.04 55) 0%, oklch(0.18 0.015 55) 100%)',
-  Chemistry:
-    'radial-gradient(120% 100% at 0% 0%, oklch(0.48 0.11 150 / 0.55) 0%, transparent 55%), radial-gradient(90% 80% at 100% 100%, oklch(0.38 0.08 140 / 0.45) 0%, transparent 55%), linear-gradient(135deg, oklch(0.28 0.035 150) 0%, oklch(0.18 0.015 60) 100%)',
-  Maths:
-    'radial-gradient(120% 100% at 0% 0%, oklch(0.52 0.13 25 / 0.55) 0%, transparent 55%), radial-gradient(90% 80% at 100% 100%, oklch(0.42 0.10 15 / 0.45) 0%, transparent 55%), linear-gradient(135deg, oklch(0.30 0.035 25) 0%, oklch(0.18 0.015 50) 100%)',
-}
-const SUBJECT_GLOW: Record<string, string> = {
-  Physics: 'oklch(0.78 0.14 62)',
-  Chemistry: 'oklch(0.72 0.12 150)',
-  Maths: 'oklch(0.74 0.14 25)',
-}
-
-function gradientFor(subject: string): string {
-  return SUBJECT_GRADIENT[subject] ?? SUBJECT_GRADIENT.Physics
-}
-function glowFor(subject: string): string {
-  return SUBJECT_GLOW[subject] ?? SUBJECT_GLOW.Physics
-}
 
 export function LivePage() {
   const live = liveSessions.find((s) => s.isLive) ?? null
@@ -79,7 +58,7 @@ export function LivePage() {
             <GlassCard strong className="relative overflow-hidden">
               <div
                 className="absolute inset-0"
-                style={{ background: gradientFor(live.subject) }}
+                style={{ background: subjectGradient(live.subject.toLowerCase()) }}
                 aria-hidden
               />
               <div className="absolute inset-0 dot-grid opacity-25" aria-hidden />
@@ -109,9 +88,9 @@ export function LivePage() {
                     <span
                       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide border"
                       style={{
-                        background: `color-mix(in oklch, ${glowFor(live.subject)} 18%, transparent)`,
-                        borderColor: `color-mix(in oklch, ${glowFor(live.subject)} 35%, transparent)`,
-                        color: glowFor(live.subject),
+                        background: `color-mix(in oklch, ${subjectTone(live.subject.toLowerCase())} 18%, transparent)`,
+                        borderColor: `color-mix(in oklch, ${subjectTone(live.subject.toLowerCase())} 35%, transparent)`,
+                        color: subjectTone(live.subject.toLowerCase()),
                       }}
                     >
                       {live.subject}
@@ -175,7 +154,7 @@ export function LivePage() {
               </div>
               <div className="grid grid-cols-1 @sm:grid-cols-2 @xl:grid-cols-3 gap-3">
                 {upcoming.map((s) => {
-                  const glow = glowFor(s.subject)
+                  const glow = subjectTone(s.subject.toLowerCase())
                   const isReminder = !!reminders[s.id]
                   const startsLabel =
                     s.startsInHours < 24

@@ -4,15 +4,18 @@ import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   MessageCircleQuestion, Plus, ArrowBigUp, MessageSquare, CheckCircle2,
-  Search, Send, X, Clock, ChevronDown, CircleDot, Sparkles, AlertCircle,
+  Send, X, Clock, ChevronDown, CircleDot, Sparkles, AlertCircle,
   RotateCcw, Bot,
 } from 'lucide-react'
 import {
   GlassCard, Pill, Avatar, EmptyState,
-  PrimaryButton, GhostButton, Badge, Segmented,
+  PrimaryButton, GhostButton, Badge,
 } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
+import { FilterBar } from '@/components/delta/global'
 import { useStore, type DoubtItem } from '@/lib/store'
+import { timeAgo } from '@/lib/format'
+import { subjectTone } from '@/lib/subjects'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
@@ -27,23 +30,6 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ]
 
 const FALLBACK_SUBJECTS = ['Physics', 'Chemistry', 'Maths'] as const
-
-const SUBJECT_TONE: Record<string, string> = {
-  Physics: 'oklch(0.78 0.14 62)',
-  Chemistry: 'oklch(0.72 0.12 150)',
-  Maths: 'oklch(0.74 0.14 25)',
-}
-
-function subjectTone(s: string): string {
-  return SUBJECT_TONE[s] ?? 'oklch(0.74 0.13 62)'
-}
-
-function timeAgo(h: number): string {
-  if (h === 0) return 'just now'
-  if (h < 1) return '<1h ago'
-  if (h < 24) return `${h}h ago`
-  return `${Math.round(h / 24)}d ago`
-}
 
 export function DoubtsPage() {
   const doubts = useStore((s) => s.doubts)
@@ -248,33 +234,18 @@ export function DoubtsPage() {
       </motion.div>
 
       {/* Search + sort */}
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 flex flex-col @sm:flex-row @sm:items-center gap-3">
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search doubts..."
-            aria-label="Search doubts"
-            className="w-full rounded-full bg-white/5 border border-border pl-9 pr-9 py-2 text-sm outline-none focus:border-white/25 placeholder:text-muted-foreground"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              aria-label="Clear search"
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="size-4" />
-            </button>
-          )}
-        </div>
-        <Segmented<SortKey>
-          options={[
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5">
+        <FilterBar
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="Search doubts..."
+          searchLabel="Search doubts"
+          segmentedOptions={[
             { value: 'recent', label: 'Recent' },
             { value: 'top', label: 'Top voted' },
           ]}
-          value={sort}
-          onChange={setSort}
+          segmentedValue={sort}
+          onSegmentedChange={(v) => setSort(v as SortKey)}
         />
       </motion.div>
 

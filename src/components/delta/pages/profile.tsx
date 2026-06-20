@@ -17,6 +17,7 @@ import {
   type Achievement,
 } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
+import { fmtAgo } from '@/lib/format'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
 const ACT_ICON: Partial<Record<string, LucideIcon>> = {
@@ -43,13 +44,6 @@ const RARITY_TONE: Record<string, string> = {
   Rare: 'text-amber-300 bg-amber-500/10 border-amber-500/20',
   Epic: 'text-orange-300 bg-orange-500/15 border-orange-500/25',
   Legendary: 'text-amber-200 bg-amber-400/20 border-amber-400/30',
-}
-
-function timeAgo(min: number): string {
-  if (min < 60) return `${min}m ago`
-  const h = Math.round(min / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.round(h / 24)}d ago`
 }
 
 export function ProfilePage() {
@@ -333,7 +327,7 @@ function RecentActivity() {
                 <div className="min-w-0 pt-0.5">
                   <p className="text-xs leading-snug text-pretty">{a.label}</p>
                   <p className="text-[10px] text-muted-foreground mt-0.5 tabular">
-                    {timeAgo(a.minutesAgo)}
+                    {fmtAgo(a.minutesAgo)}
                   </p>
                 </div>
               </li>

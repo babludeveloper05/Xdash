@@ -8,10 +8,12 @@ import {
   Trophy, Target, Timer, ArrowLeft, CircleCheck, CircleDot, Bookmark, Inbox,
 } from 'lucide-react'
 import {
-  GlassCard, Pill, PrimaryButton, GhostButton, IconButton,
-  ProgressRing, MetricCard, Badge, EmptyState,
+  GlassCard, PrimaryButton, GhostButton, IconButton,
+  ProgressRing, Badge, EmptyState,
 } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
+import { FilterBar } from '@/components/delta/global'
+import { DataCard, StatBlock } from '@/components/delta/data'
 import { useStore, type HistoryRow } from '@/lib/store'
 import { tests, buildQuestions, type TestItem, type Question } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
@@ -140,16 +142,16 @@ function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void;
         transition={itemTransition(reduce)}
         className="grid grid-cols-2 @md:grid-cols-4 gap-3"
       >
-        <MetricCard label="Tests Due" value={dueCount} sub="Active deadlines" icon={<Clock className="size-3.5" />} />
-        <MetricCard label="Avg Score" value={`${avgPct}%`} sub="Across attempts" icon={<Target className="size-3.5" />} />
-        <MetricCard
+        <StatBlock label="Tests Due" value={dueCount} sub="Active deadlines" icon={<Clock className="size-4" />} />
+        <StatBlock label="Avg Score" value={`${avgPct}%`} sub="Across attempts" icon={<Target className="size-4" />} />
+        <StatBlock
           label="Tests Taken"
           value={history.length}
           sub="All time"
-          icon={<BarChart3 className="size-3.5" />}
+          icon={<BarChart3 className="size-4" />}
           trend={{ value: recentTrend, suffix: 'pts' }}
         />
-        <MetricCard label="Available" value={tests.length} sub="Mock bank" icon={<FileText className="size-3.5" />} />
+        <StatBlock label="Available" value={tests.length} sub="Mock bank" icon={<FileText className="size-4" />} />
       </motion.div>
 
       {/* Filters */}
@@ -158,22 +160,18 @@ function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void;
         transition={itemTransition(reduce)}
         className="flex flex-col gap-2"
       >
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">Type</span>
-          {TEST_TYPES.map((t) => (
-            <Pill key={t} active={type === t} onClick={() => setType(t)}>
-              {t}
-            </Pill>
-          ))}
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">Level</span>
-          {DIFFICULTIES.map((d) => (
-            <Pill key={d} active={diff === d} onClick={() => setDiff(d)}>
-              {d}
-            </Pill>
-          ))}
-        </div>
+        <FilterBar
+          pills={TEST_TYPES.map((t) => ({ key: t, label: t }))}
+          activePill={type}
+          onPillChange={setType}
+          pillLabel="Type"
+        />
+        <FilterBar
+          pills={DIFFICULTIES.map((d) => ({ key: d, label: d }))}
+          activePill={diff}
+          onPillChange={setDiff}
+          pillLabel="Level"
+        />
       </motion.div>
 
       {/* Test grid */}
@@ -213,35 +211,36 @@ function TestCard({ test, onStart }: { test: TestItem; onStart: () => void }) {
     test.difficulty === 'Hard' ? 'destructive' : test.difficulty === 'Moderate' ? 'warning' : 'success'
 
   return (
-    <GlassCard className="p-4 flex flex-col gap-3 group transition-all duration-300 hover:elev-2 hover:-translate-y-0.5">
-      <div className="flex items-start justify-between gap-2">
-        <span className="grid place-items-center size-10 rounded-xl bg-primary/12 text-primary border border-primary/15 shrink-0">
-          <FileText className="size-5" />
-        </span>
-        <Badge tone={deadlineTone}>
-          <Clock className="size-2.5" /> {deadlineLabel}
-        </Badge>
-      </div>
-      <div className="min-w-0">
-        <p className="text-sm font-medium leading-snug line-clamp-2 text-pretty">{test.name}</p>
-        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+    <DataCard
+      icon={<FileText className="size-5" />}
+      title={test.name}
+      badges={
+        <>
+          <Badge tone={deadlineTone}>
+            <Clock className="size-2.5" /> {deadlineLabel}
+          </Badge>
           <Badge tone="primary">{test.type}</Badge>
           <Badge tone="default">{test.subject}</Badge>
           <Badge tone={diffTone}>{test.difficulty}</Badge>
-        </div>
-      </div>
-      <div className="flex items-center gap-3 text-[11px] text-muted-foreground tabular">
-        <span className="flex items-center gap-1">
-          <Grid3x3 className="size-3" /> {test.questionCount} Q
-        </span>
-        <span className="flex items-center gap-1">
-          <Timer className="size-3" /> {test.durationMin}m
-        </span>
-      </div>
-      <PrimaryButton onClick={onStart} className="mt-1 w-full">
-        Start Test <ChevronRight className="size-3.5" />
-      </PrimaryButton>
-    </GlassCard>
+        </>
+      }
+      stats={
+        <>
+          <span className="flex items-center gap-1">
+            <Grid3x3 className="size-3" /> {test.questionCount} Q
+          </span>
+          <span className="flex items-center gap-1">
+            <Timer className="size-3" /> {test.durationMin}m
+          </span>
+        </>
+      }
+      action={
+        <PrimaryButton onClick={onStart} className="w-full">
+          Start Test <ChevronRight className="size-3.5" />
+        </PrimaryButton>
+      }
+      className="p-4 hover:elev-2 hover:-translate-y-0.5"
+    />
   )
 }
 

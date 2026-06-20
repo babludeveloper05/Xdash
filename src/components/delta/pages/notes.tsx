@@ -3,13 +3,14 @@
 import { useMemo, useState, useEffect } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
-  Plus, Search, Tag, Trash2, Save, StickyNote, X, FileText,
+  Plus, Tag, Trash2, Save, StickyNote, X, FileText,
   Pencil, Clock, Sparkles,
 } from 'lucide-react'
 import {
-  GlassCard, Pill, PrimaryButton, GhostButton, Badge, EmptyState,
+  GlassCard, Pill, PrimaryButton, GhostButton, Badge,
 } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
+import { FilterBar, EmptyStateWrapper } from '@/components/delta/global'
 import { useStore } from '@/lib/store'
 import { type NoteItem } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
@@ -150,33 +151,16 @@ export function NotesPage() {
 
       {/* Filters */}
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex flex-col gap-2">
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search notes by title, content, or tag…"
-            className="w-full rounded-full bg-white/5 border border-border pl-9 pr-9 py-2 text-sm outline-none focus:border-primary/30 placeholder:text-muted-foreground"
-            aria-label="Search notes"
-          />
-          {query && (
-            <button
-              onClick={() => setQuery('')}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors"
-              aria-label="Clear search"
-            >
-              <X className="size-4" />
-            </button>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">Subject</span>
-          {SUBJECT_FILTERS.map((s) => (
-            <Pill key={s} active={subjectFilter === s} onClick={() => setSubjectFilter(s)}>
-              {s}
-            </Pill>
-          ))}
-        </div>
+        <FilterBar
+          searchValue={query}
+          onSearchChange={setQuery}
+          searchPlaceholder="Search notes by title, content, or tag…"
+          searchLabel="Search notes"
+          pills={SUBJECT_FILTERS.map((s) => ({ key: s, label: s }))}
+          activePill={subjectFilter}
+          onPillChange={setSubjectFilter}
+          pillLabel="Subject"
+        />
         {allTags.length > 1 && (
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">Tag</span>
@@ -191,24 +175,23 @@ export function NotesPage() {
 
       {/* Notes grid */}
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex-1 overflow-y-auto scroll-thin pr-1 min-h-0">
-        {filtered.length === 0 ? (
-          <EmptyState
-            icon={<StickyNote className="size-6" />}
-            title={notes.length === 0 ? 'No notes yet' : 'No notes match'}
-            hint={
-              notes.length === 0
-                ? 'Create your first note to start building your cheatsheet.'
-                : 'Try a different filter or search term.'
-            }
-            cta={
-              notes.length === 0 ? (
-                <PrimaryButton onClick={openNew}>
-                  <Plus className="size-3.5" /> Create note
-                </PrimaryButton>
-              ) : undefined
-            }
-          />
-        ) : (
+        <EmptyStateWrapper
+          isEmpty={filtered.length === 0}
+          emptyIcon={<StickyNote className="size-6" />}
+          emptyTitle={notes.length === 0 ? 'No notes yet' : 'No notes match'}
+          emptyHint={
+            notes.length === 0
+              ? 'Create your first note to start building your cheatsheet.'
+              : 'Try a different filter or search term.'
+          }
+          emptyCta={
+            notes.length === 0 ? (
+              <PrimaryButton onClick={openNew}>
+                <Plus className="size-3.5" /> Create note
+              </PrimaryButton>
+            ) : undefined
+          }
+        >
           <div className="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4 gap-3 pb-1">
             {filtered.map((n) => (
               <NoteCard
@@ -220,7 +203,7 @@ export function NotesPage() {
               />
             ))}
           </div>
-        )}
+        </EmptyStateWrapper>
       </motion.div>
 
       {/* Editor modal */}

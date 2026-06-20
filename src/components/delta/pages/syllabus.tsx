@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen,
@@ -11,8 +11,10 @@ import {
   GlassCard, Pill, ProgressRing, EmptyState,
 } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
+import { StatBlock } from '@/components/delta/data'
 import { useStore, useSubjectProgress } from '@/lib/store'
 import { SUBJECTS, chapters, videos, type SubjectId } from '@/lib/mock-data'
+import { subjectTone } from '@/lib/subjects'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
@@ -20,20 +22,6 @@ type SubjectFilter = 'all' | SubjectId
 
 const ICONS: Record<string, LucideIcon> = {
   Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen,
-}
-
-/* Warm subject accents — amber/emerald/rose family, no indigo/blue. */
-const SUBJECT_ACCENT: Record<SubjectId, string> = {
-  physics: 'oklch(0.78 0.14 62)',
-  chemistry: 'oklch(0.72 0.12 150)',
-  maths: 'oklch(0.74 0.14 25)',
-  biology: 'oklch(0.74 0.13 30)',
-  cs: 'oklch(0.72 0.10 180)',
-  english: 'oklch(0.78 0.08 90)',
-}
-
-function accentFor(id: SubjectId): string {
-  return SUBJECT_ACCENT[id] ?? 'oklch(0.74 0.13 62)'
 }
 
 export function SyllabusPage() {
@@ -86,33 +74,31 @@ export function SyllabusPage() {
         animate="animate"
       >
       {/* Overall summary row */}
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 pt-5">
-        <GlassCard className="p-4 grid grid-cols-2 @sm:grid-cols-4 gap-4">
-          <SummaryStat
-            label="Topics mastered"
-            value={String(overall.topicsDone)}
-            sub={`of ${overall.topicsTotal}`}
-            icon={<Check className="size-4 text-success" />}
-          />
-          <SummaryStat
-            label="Chapters done"
-            value={String(overall.chaptersDone)}
-            sub={`of ${overall.chaptersTotal}`}
-            icon={<BookOpen className="size-4 text-primary" />}
-          />
-          <SummaryStat
-            label="In progress"
-            value={String(overall.inProgress)}
-            sub="active topics"
-            icon={<TrendingUp className="size-4 text-warning" />}
-          />
-          <SummaryStat
-            label="Completion"
-            value={`${Math.round(overall.pct * 100)}%`}
-            sub="overall"
-            icon={<Layers className="size-4 text-primary" />}
-          />
-        </GlassCard>
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 pt-5 grid grid-cols-2 @sm:grid-cols-4 gap-3">
+        <StatBlock
+          label="Topics mastered"
+          value={String(overall.topicsDone)}
+          sub={`of ${overall.topicsTotal}`}
+          icon={<Check className="size-4 text-success" />}
+        />
+        <StatBlock
+          label="Chapters done"
+          value={String(overall.chaptersDone)}
+          sub={`of ${overall.chaptersTotal}`}
+          icon={<BookOpen className="size-4 text-primary" />}
+        />
+        <StatBlock
+          label="In progress"
+          value={String(overall.inProgress)}
+          sub="active topics"
+          icon={<TrendingUp className="size-4 text-warning" />}
+        />
+        <StatBlock
+          label="Completion"
+          value={`${Math.round(overall.pct * 100)}%`}
+          sub="overall"
+          icon={<Layers className="size-4 text-primary" />}
+        />
       </motion.div>
 
       {/* Subject filter pills */}
@@ -138,7 +124,7 @@ export function SyllabusPage() {
             >
               <Icon
                 className="size-3.5"
-                style={{ color: active ? 'inherit' : accentFor(s.id) }}
+                style={{ color: active ? 'inherit' : subjectTone(s.id) }}
               />
               <span>{s.name}</span>
               <span
@@ -170,7 +156,7 @@ export function SyllabusPage() {
           <div className="flex flex-col gap-4">
             {visibleSubjects.map((subject) => {
               const Icon = ICONS[subject.icon]
-              const accent = accentFor(subject.id)
+              const accent = subjectTone(subject.id)
               const subChapters = chapters.filter((c) => c.subjectId === subject.id)
               const subVideos = videos.filter((v) => v.subjectId === subject.id)
               const subDone = subVideos.filter((v) => vp[v.id]?.completed).length
@@ -343,31 +329,5 @@ export function SyllabusPage() {
       </motion.div>
       </motion.div>
     </ScaledPage>
-  )
-}
-
-function SummaryStat({
-  label,
-  value,
-  sub,
-  icon,
-}: {
-  label: string
-  value: string
-  sub: string
-  icon: ReactNode
-}) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="grid place-items-center size-9 rounded-xl bg-white/5 border border-border shrink-0">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground">{label}</p>
-        <p className="text-lg font-light tabular leading-tight">
-          {value} <span className="text-[11px] text-muted-foreground">{sub}</span>
-        </p>
-      </div>
-    </div>
   )
 }

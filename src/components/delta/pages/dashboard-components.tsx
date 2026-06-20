@@ -4,6 +4,7 @@ import { useStore, useSubjectProgress } from '@/lib/store'
 import { SUBJECTS, liveSessions, tests, leaderboard, activity } from '@/lib/mock-data'
 import { ProgressRing } from '../ui'
 import { cn } from '@/lib/utils'
+import { fmtDeadline, fmtAgo } from '@/lib/format'
 import {
   Flame, Target, BookMarked, StickyNote, Trophy, Activity as ActivityIcon,
   TrendingUp, Radio, CalendarClock, ArrowUpRight, ArrowDownRight,
@@ -24,22 +25,6 @@ function greeting() {
 /** Today as 0=Mon..6=Sun, matching the `days` array order. */
 function todayIndex() {
   return (new Date().getDay() + 6) % 7
-}
-
-function fmtDeadline(hours: number): string {
-  if (hours < 1) return '<1h left'
-  if (hours < 24) return `${Math.round(hours)}h left`
-  const days = Math.floor(hours / 24)
-  const rem = Math.round(hours % 24)
-  return rem > 0 && days === 1 ? `1d ${rem}h left` : `${days}d left`
-}
-
-function fmtAgo(min: number): string {
-  if (min < 1) return 'just now'
-  if (min < 60) return `${min}m ago`
-  const h = Math.floor(min / 60)
-  if (h < 24) return `${h}h ago`
-  return `${Math.floor(h / 24)}d ago`
 }
 
 /* ------------------------------------------------------------------ */

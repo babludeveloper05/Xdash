@@ -1,0 +1,627 @@
+     1→'use client'
+     2→
+     3→import { useStore, type TabId } from '@/lib/store'
+     4→import { useState } from 'react'
+     5→import { GraduationCap, Check, Target, Sparkles, UserRound, MapPin, BookOpenCheck, ArrowRight, ChevronLeft, Plus, X, Briefcase, Rocket, Palette, Code2, Database, TrendingUp, Heart, Languages, Music, PenLine, FlaskConical, Atom, Trophy, LayoutDashboard, Home, Library, FileText, StickyNote, Radio, Activity, Medal, Award, User, Settings as SettingsIcon, Layers, MessageCircleQuestion } from 'lucide-react'
+     6→import { cn } from '@/lib/utils'
+     7→
+     8→const TARGET_YEARS = ['2026', '2027', '2028']
+     9→
+    10→/**
+    11→ * Track presets — span students, professionals, and personal growth so the
+    12→ * app serves anyone, not just science-exam aspirants. Each preset pre-fills a
+    13→ * relevant subject set; "Custom" lets the user pick freely (incl. adding their
+    14→ * own subject names via the free-form input in step 3).
+    15→ */
+    16→interface TrackPreset {
+    17→  id: string
+    18→  name: string
+    19→  blurb: string
+    20→  icon: typeof Code2
+    21→  subjects: string[]
+    22→}
+    23→
+    24→interface TrackCategory {
+    25→  label: string
+    26→  presets: TrackPreset[]
+    27→}
+    28→
+    29→const TRACK_CATEGORIES: TrackCategory[] = [
+    30→  {
+    31→    label: 'Students & Academics',
+    32→    presets: [
+    33→      { id: 'jee', name: 'JEE / Engineering', blurb: 'Physics · Chemistry · Maths', icon: Atom, subjects: ['Physics', 'Chemistry', 'Maths'] },
+    34→      { id: 'neet', name: 'NEET / Medical', blurb: 'Physics · Chemistry · Biology', icon: Heart, subjects: ['Physics', 'Chemistry', 'Biology'] },
+    35→      { id: 'boards', name: 'Board Exams', blurb: 'Core science + English', icon: GraduationCap, subjects: ['Physics', 'Chemistry', 'Maths', 'Biology', 'English'] },
+    36→      { id: 'upsc', name: 'UPSC / Civil Services', blurb: 'Polity · History · Geography', icon: Trophy, subjects: ['Polity', 'History', 'Geography', 'Economy', 'Current Affairs'] },
+    37→      { id: 'gate', name: 'GATE / Higher Studies', blurb: 'CS · Maths', icon: FlaskConical, subjects: ['Computer Science', 'Maths'] },
+    38→      { id: 'language', name: 'Language / Aptitude', blurb: 'English & verbal skills', icon: Languages, subjects: ['English', 'Verbal Ability'] },
+    39→    ],
+    40→  },
+    41→  {
+    42→    label: 'Professionals',
+    43→    presets: [
+    44→      { id: 'dev', name: 'Software Developer', blurb: 'DSA · System Design · DB', icon: Code2, subjects: ['Data Structures', 'Algorithms', 'System Design', 'Databases'] },
+    45→      { id: 'data', name: 'Data / ML Engineer', blurb: 'Stats · Python · ML · DL', icon: Database, subjects: ['Statistics', 'Python', 'Machine Learning', 'Deep Learning'] },
+    46→      { id: 'pm', name: 'Product Manager', blurb: 'Strategy · Analytics · UX', icon: Briefcase, subjects: ['Product Strategy', 'Analytics', 'User Research', 'Roadmapping'] },
+    47→      { id: 'design', name: 'Designer', blurb: 'UI/UX · Type · Color · Motion', icon: Palette, subjects: ['UI/UX', 'Typography', 'Color Theory', 'Motion Design'] },
+    48→      { id: 'finance', name: 'Business / Finance', blurb: 'Accounting · Markets · Excel', icon: TrendingUp, subjects: ['Accounting', 'Markets', 'Excel', 'Strategy'] },
+    49→      { id: 'marketing', name: 'Marketing / Growth', blurb: 'SEO · Content · Ads', icon: Rocket, subjects: ['SEO', 'Content', 'Analytics', 'Paid Media'] },
+    50→      { id: 'devops', name: 'DevOps / Cloud', blurb: 'Linux · AWS · K8s · CI/CD', icon: Code2, subjects: ['Linux', 'AWS', 'Kubernetes', 'CI/CD'] },
+    51→    ],
+    52→  },
+    53→  {
+    54→    label: 'Personal Growth',
+    55→    presets: [
+    56→      { id: 'lang-learn', name: 'Language Learning', blurb: 'Vocab · Grammar · Speaking', icon: Languages, subjects: ['Vocabulary', 'Grammar', 'Speaking', 'Listening'] },
+    57→      { id: 'fitness', name: 'Fitness & Health', blurb: 'Nutrition · Training · Recovery', icon: Heart, subjects: ['Nutrition', 'Training', 'Recovery', 'Mindfulness'] },
+    58→      { id: 'writing', name: 'Creative Writing', blurb: 'Plot · Character · Prose', icon: PenLine, subjects: ['Plot', 'Character', 'Prose', 'Poetry'] },
+    59→      { id: 'music', name: 'Music', blurb: 'Theory · Practice · Composition', icon: Music, subjects: ['Theory', 'Practice', 'Composition', 'Ear Training'] },
+    60→      { id: 'gk', name: 'General Knowledge', blurb: 'History · Science · Current', icon: BookOpenCheck, subjects: ['History', 'Science', 'Current Affairs'] },
+    61→    ],
+    62→  },
+    63→  {
+    64→    label: '',
+    65→    presets: [
+    66→      { id: 'custom', name: 'Custom', blurb: 'Pick your own subjects', icon: Plus, subjects: [] },
+    67→    ],
+    68→  },
+    69→]
+    70→
+    71→const ALL_PRESETS = TRACK_CATEGORIES.flatMap((c) => c.presets)
+    72→
+    73→export function Onboarding() {
+    74→  const { onboardingDone, finishOnboarding, setDailyGoal, setProfile, setEnabledTabs, setAppearance } = useStore()
+    75→  const [step, setStep] = useState(0)
+    76→  const [presetId, setPresetId] = useState<string>('')
+    77→  const [picked, setPicked] = useState<string[]>([])
+    78→  const [customSubject, setCustomSubject] = useState('')
+    79→  const [goal, setGoal] = useState(6)
+    80→
+    81→  // page + appearance customization (new steps)
+    82→  const PAGE_OPTIONS: { id: TabId; label: string; icon: typeof Home; locked?: boolean }[] = [
+    83→    { id: 'home', label: 'Home', icon: Home, locked: true },
+    84→    { id: 'library', label: 'Library', icon: Library },
+    85→    { id: 'tests', label: 'Tests', icon: FileText },
+    86→    { id: 'notes', label: 'Notes', icon: StickyNote },
+    87→    { id: 'live', label: 'Live', icon: Radio },
+    88→    { id: 'analytics', label: 'Analytics', icon: Activity },
+    89→    { id: 'leaderboard', label: 'Leaderboard', icon: Medal },
+    90→    { id: 'achievements', label: 'Achievements', icon: Award },
+    91→    { id: 'syllabus', label: 'Syllabus', icon: Layers },
+    92→    { id: 'doubts', label: 'Doubts', icon: MessageCircleQuestion },
+    93→    { id: 'playground', label: 'Playground', icon: LayoutDashboard },
+    94→    { id: 'profile', label: 'Profile', icon: User, locked: true },
+    95→    { id: 'settings', label: 'Settings', icon: SettingsIcon, locked: true },
+    96→  ]
+    97→  const [enabledPages, setEnabledPages] = useState<TabId[]>(
+    98→    ['home', 'library', 'tests', 'notes', 'live', 'analytics', 'leaderboard', 'achievements', 'profile', 'settings']
+    99→  )
+   100→  const [accentHue, setAccentHue] = useState(62)
+   101→  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable')
+   102→  const [glass, setGlass] = useState<'strong' | 'medium' | 'subtle'>('strong')
+   103→
+   104→  // profile fields
+   105→  const [name, setName] = useState('')
+   106→  const [location, setLocation] = useState('')
+   107→  const [examName, setExamName] = useState('')
+   108→  const [targetYear, setTargetYear] = useState('2027')
+   109→  const [bio, setBio] = useState('')
+   110→
+   111→  if (onboardingDone) return null
+   112→
+   113→  const initials =
+   114→    name
+   115→      .trim()
+   116→      .split(/\s+/)
+   117→      .slice(0, 2)
+   118→      .map((w) => w[0]?.toUpperCase() ?? '')
+   119→      .join('') || '?'
+   120→
+   121→  const steps = [
+   122→    {
+   123→      icon: <Sparkles className="size-6" />,
+   124→      title: 'Welcome to Project Delta',
+   125→      body: 'Your premium command center for learning — lectures, tests, analytics and a fully configurable dashboard. For students, professionals, and anyone building a skill.',
+   126→    },
+   127→    {
+   128→      icon: <UserRound className="size-6" />,
+   129→      title: 'Create your profile',
+   130→      body: 'Tell us who you are and what you are working toward. This personalizes your dashboard, profile page and greetings.',
+   131→    },
+   132→    {
+   133→      icon: <BookOpenCheck className="size-6" />,
+   134→      title: 'What are you here for?',
+   135→      body: 'Pick a track to pre-fill the right subjects. Students, professionals, creators — there is a preset for everyone. You can change everything later.',
+   136→    },
+   137→    {
+   138→      icon: <GraduationCap className="size-6" />,
+   139→      title: 'Confirm your subjects',
+   140→      body: 'These power your library, tests and doubts. Add your own if a subject is missing — you can change this anytime in Settings.',
+   141→    },
+   142→    {
+   143→      icon: <LayoutDashboard className="size-6" />,
+   144→      title: 'Choose your pages',
+   145→      body: 'Pick which pages appear in your navigation. Home, Profile and Settings are always on — toggle the rest to fit how you work.',
+   146→    },
+   147→    {
+   148→      icon: <Palette className="size-6" />,
+   149→      title: 'Make it yours',
+   150→      body: 'Pick an accent color, choose how dense the layout feels, and tune the glassmorphism. You can change all of this later in Settings.',
+   151→    },
+   152→    {
+   153→      icon: <Target className="size-6" />,
+   154→      title: 'Set a daily goal',
+   155→      body: 'How many hours do you aim to put in each day? This powers your goal ring and streak.',
+   156→    },
+   157→  ]
+   158→  const last = steps.length - 1
+   159→  const s = steps[step]
+   160→
+   161→  function choosePreset(p: TrackPreset) {
+   162→    setPresetId(p.id)
+   163→    setPicked(p.subjects)
+   164→    if (!examName.trim()) setExamName(p.name)
+   165→  }
+   166→
+   167→  function addCustomSubject() {
+   168→    const v = customSubject.trim()
+   169→    if (!v || picked.includes(v)) return
+   170→    setPicked((p) => [...p, v])
+   171→    setCustomSubject('')
+   172→  }
+   173→
+   174→  const canContinue =
+   175→    step === 1 ? name.trim().length > 0 :
+   176→    step === 2 ? presetId !== '' :
+   177→    step === 3 ? picked.length > 0 :
+   178→    step === 4 ? enabledPages.length >= 3 :
+   179→    true
+   180→
+   181→  const continueLabel =
+   182→    step === 1 ? 'Looks good' :
+   183→    step === 2 ? 'Use these subjects' :
+   184→    step === 3 ? 'Next' :
+   185→    step === 4 ? 'Next' :
+   186→    step === 5 ? 'Next' :
+   187→    step === last ? 'Enter Delta' : 'Continue'
+   188→
+   189→  function commit() {
+   190→    const resolvedGoal = examName.trim() || 'My Goal'
+   191→    const preset = ALL_PRESETS.find((p) => p.id === presetId)
+   192→    const track = preset?.name ?? 'Learner'
+   193→    setProfile({
+   194→      name: name.trim() || 'New Learner',
+   195→      location: location.trim() || 'Not set',
+   196→      targetYear,
+   197→      batch: `${resolvedGoal} ${targetYear}`,
+   198→      examName: resolvedGoal,
+   199→      track,
+   200→      subjects: picked,
+   201→      bio: bio.trim() || `${track} working toward ${resolvedGoal} on Project Delta.`,
+   202→    })
+   203→    setEnabledTabs(enabledPages)
+   204→    setAppearance({ accentHue, density, glass })
+   205→    setDailyGoal(goal)
+   206→    finishOnboarding()
+   207→  }
+   208→
+   209→  return (
+   210→    <div className="fixed inset-0 z-[120] grid place-items-center bg-black/65 backdrop-blur-md p-4 animate-[fadeIn_0.2s_ease]">
+   211→      <div className="w-[min(560px,92vw)] glass-strong rounded-3xl elev-3 p-6 sm:p-7 relative animate-[popIn_0.25s_ease] max-h-[92vh] overflow-y-auto scroll-thin">
+   212→        {/* Step icon + title */}
+   213→        <div className="flex items-start gap-4">
+   214→          <div className="grid place-items-center size-12 rounded-2xl bg-primary text-primary-foreground shrink-0 elev-1">
+   215→            {s.icon}
+   216→          </div>
+   217→          <div className="min-w-0 flex-1">
+   218→            <div className="flex items-center gap-2 text-[11px] uppercase tracking-wider text-muted-foreground font-medium">
+   219→              <span>Step {step + 1} of {steps.length}</span>
+   220→            </div>
+   221→            <h2 className="text-xl font-semibold tracking-tight text-balance mt-0.5">{s.title}</h2>
+   222→            <p className="text-sm text-muted-foreground mt-1.5 leading-relaxed text-pretty">{s.body}</p>
+   223→          </div>
+   224→        </div>
+   225→
+   226→        {/* Step 1 — create profile */}
+   227→        {step === 1 && (
+   228→          <div className="mt-5 flex flex-col gap-3 animate-[fadeUp_0.25s_ease]">
+   229→            <div className="flex items-center gap-4">
+   230→              <div className="grid place-items-center size-16 rounded-2xl bg-primary/15 text-primary text-xl font-medium shrink-0 border border-primary/20">
+   231→                {initials}
+   232→              </div>
+   233→              <div className="flex-1">
+   234→                <Field label="Full name" required>
+   235→                  <input
+   236→                    autoFocus
+   237→                    value={name}
+   238→                    onChange={(e) => setName(e.target.value)}
+   239→                    placeholder="e.g. Riya Verma"
+   240→                    className="w-full bg-transparent outline-none text-sm placeholder:text-muted-foreground/60"
+   241→                  />
+   242→                </Field>
+   243→              </div>
+   244→            </div>
+   245→
+   246→            <Field label="Goal / focus name" icon={<BookOpenCheck className="size-3.5" />}>
+   247→              <input
+   248→                value={examName}
+   249→                onChange={(e) => setExamName(e.target.value)}
+   250→                placeholder="e.g. Frontend Dev, JEE, UPSC, IELTS, Guitar…"
+   251→                className="w-full bg-transparent outline-none text-sm placeholder:text-muted-foreground/60"
+   252→              />
+   253→            </Field>
+   254→
+   255→            <Field label="Location (optional)" icon={<MapPin className="size-3.5" />}>
+   256→              <input
+   257→                value={location}
+   258→                onChange={(e) => setLocation(e.target.value)}
+   259→                placeholder="e.g. Bengaluru, India"
+   260→                className="w-full bg-transparent outline-none text-sm placeholder:text-muted-foreground/60"
+   261→              />
+   262→            </Field>
+   263→
+   264→            <div>
+   265→              <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Target year</p>
+   266→              <div className="grid grid-cols-3 gap-2">
+   267→                {TARGET_YEARS.map((y) => {
+   268→                  const on = targetYear === y
+   269→                  return (
+   270→                    <button
+   271→                      key={y}
+   272→                      onClick={() => setTargetYear(y)}
+   273→                      className={cn(
+   274→                        'rounded-xl border py-2 text-sm font-medium transition-all',
+   275→                        on ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+   276→                      )}
+   277→                    >
+   278→                      {y}
+   279→                    </button>
+   280→                  )
+   281→                })}
+   282→              </div>
+   283→            </div>
+   284→
+   285→            <Field label="Short bio (optional)">
+   286→              <textarea
+   287→                value={bio}
+   288→                onChange={(e) => setBio(e.target.value)}
+   289→                rows={2}
+   290→                placeholder="A line about your goals…"
+   291→                className="w-full bg-transparent outline-none text-sm resize-none placeholder:text-muted-foreground/60"
+   292→              />
+   293→            </Field>
+   294→          </div>
+   295→        )}
+   296→
+   297→        {/* Step 2 — choose track preset */}
+   298→        {step === 2 && (
+   299→          <div className="mt-5 flex flex-col gap-4 animate-[fadeUp_0.25s_ease]">
+   300→            {TRACK_CATEGORIES.map((cat) => cat.label ? (
+   301→              <div key={cat.label}>
+   302→                <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">{cat.label}</p>
+   303→                <div className="grid grid-cols-2 gap-2">
+   304→                  {cat.presets.map((p) => {
+   305→                    const on = presetId === p.id
+   306→                    const Icon = p.icon
+   307→                    return (
+   308→                      <button
+   309→                        key={p.id}
+   310→                        onClick={() => choosePreset(p)}
+   311→                        className={cn(
+   312→                          'rounded-xl border p-3 text-left transition-all',
+   313→                          on ? 'border-primary bg-primary/10' : 'border-border bg-white/5 hover:bg-white/10 hover:border-white/15'
+   314→                        )}
+   315→                      >
+   316→                        <div className="flex items-center justify-between">
+   317→                          <span className="flex items-center gap-1.5 text-[13px] font-medium">
+   318→                            <Icon className="size-3.5 text-primary" />
+   319→                            {p.name}
+   320→                          </span>
+   321→                          {on && <Check className="size-3.5 text-primary" />}
+   322→                        </div>
+   323→                        <span className="block text-[11px] text-muted-foreground mt-0.5">{p.blurb}</span>
+   324→                      </button>
+   325→                    )
+   326→                  })}
+   327→                </div>
+   328→              </div>
+   329→            ) : (
+   330→              <div key="custom-row">
+   331→                <div className="grid grid-cols-2 gap-2">
+   332→                  {cat.presets.map((p) => {
+   333→                    const on = presetId === p.id
+   334→                    const Icon = p.icon
+   335→                    return (
+   336→                      <button
+   337→                        key={p.id}
+   338→                        onClick={() => choosePreset(p)}
+   339→                        className={cn(
+   340→                          'rounded-xl border p-3 text-left transition-all col-span-2',
+   341→                          on ? 'border-primary bg-primary/10' : 'border-border bg-white/5 hover:bg-white/10 hover:border-white/15'
+   342→                        )}
+   343→                      >
+   344→                        <div className="flex items-center justify-between">
+   345→                          <span className="flex items-center gap-1.5 text-[13px] font-medium">
+   346→                            <Icon className="size-3.5 text-primary" />
+   347→                            {p.name}
+   348→                          </span>
+   349→                          {on && <Check className="size-3.5 text-primary" />}
+   350→                        </div>
+   351→                        <span className="block text-[11px] text-muted-foreground mt-0.5">{p.blurb}</span>
+   352→                      </button>
+   353→                    )
+   354→                  })}
+   355→                </div>
+   356→              </div>
+   357→            ))}
+   358→          </div>
+   359→        )}
+   360→
+   361→        {/* Step 3 — subjects (free-form, preset-seeded) */}
+   362→        {step === 3 && (
+   363→          <div className="mt-5 animate-[fadeUp_0.25s_ease]">
+   364→            <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-2">Your subjects</p>
+   365→            <div className="flex flex-wrap gap-2 mb-3">
+   366→              {picked.length === 0 && (
+   367→                <span className="text-xs text-muted-foreground">No subjects yet — add some below.</span>
+   368→              )}
+   369→              {picked.map((sub) => (
+   370→                <span
+   371→                  key={sub}
+   372→                  className="inline-flex items-center gap-1.5 rounded-full bg-primary/10 border border-primary/25 px-3 py-1.5 text-xs font-medium text-foreground"
+   373→                >
+   374→                  {sub}
+   375→                  <button
+   376→                    onClick={() => setPicked((p) => p.filter((x) => x !== sub))}
+   377→                    aria-label={`Remove ${sub}`}
+   378→                    className="text-muted-foreground hover:text-destructive transition-colors"
+   379→                  >
+   380→                    <X className="size-3" />
+   381→                  </button>
+   382→                </span>
+   383→              ))}
+   384→            </div>
+   385→            {/* Add custom subject */}
+   386→            <div className="flex gap-2">
+   387→              <input
+   388→                value={customSubject}
+   389→                onChange={(e) => setCustomSubject(e.target.value)}
+   390→                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomSubject() } }}
+   391→                placeholder="Add a subject and press Enter…"
+   392→                className="flex-1 rounded-xl border border-border bg-white/5 px-3 py-2 text-sm outline-none focus:border-primary/50 placeholder:text-muted-foreground/60"
+   393→              />
+   394→              <button
+   395→                onClick={addCustomSubject}
+   396→                disabled={!customSubject.trim()}
+   397→                className="inline-flex items-center gap-1 rounded-xl bg-primary/15 border border-primary/25 text-primary px-3 py-2 text-xs font-medium hover:bg-primary/25 transition-colors disabled:opacity-40"
+   398→              >
+   399→                <Plus className="size-3.5" /> Add
+   400→              </button>
+   401→            </div>
+   402→            <p className="text-[11px] text-muted-foreground mt-3 text-pretty">
+   403→              These appear in your Library, Tests, and Doubts. Add anything — a language, a framework, a hobby.
+   404→            </p>
+   405→          </div>
+   406→        )}
+   407→
+   408→        {/* Step 4 — choose pages */}
+   409→        {step === 4 && (
+   410→          <div className="mt-5 animate-[fadeUp_0.25s_ease]">
+   411→            <div className="grid grid-cols-2 gap-2">
+   412→              {PAGE_OPTIONS.map((p) => {
+   413→                const on = enabledPages.includes(p.id)
+   414→                const Icon = p.icon
+   415→                const locked = p.locked
+   416→                return (
+   417→                  <button
+   418→                    key={p.id}
+   419→                    onClick={() => {
+   420→                      if (locked) return
+   421→                      setEnabledPages((prev) =>
+   422→                        on ? prev.filter((x) => x !== p.id) : [...prev, p.id]
+   423→                      )
+   424→                    }}
+   425→                    disabled={locked}
+   426→                    className={cn(
+   427→                      'rounded-xl border p-3 text-left transition-all flex items-center gap-2.5',
+   428→                      on ? 'border-primary bg-primary/10' : 'border-border bg-white/5 hover:bg-white/10 hover:border-white/15',
+   429→                      locked && 'opacity-60 cursor-not-allowed'
+   430→                    )}
+   431→                  >
+   432→                    <Icon className="size-4 text-primary shrink-0" />
+   433→                    <span className="text-[13px] font-medium flex-1">{p.label}</span>
+   434→                    {locked ? (
+   435→                      <span className="text-[9px] uppercase tracking-wide text-muted-foreground">Always</span>
+   436→                    ) : on ? (
+   437→                      <Check className="size-3.5 text-primary" />
+   438→                    ) : null}
+   439→                  </button>
+   440→                )
+   441→              })}
+   442→            </div>
+   443→            <p className="text-[11px] text-muted-foreground mt-3">
+   444→              {enabledPages.length} of {PAGE_OPTIONS.length} pages enabled. Toggle freely — you can change this anytime in Settings.
+   445→            </p>
+   446→          </div>
+   447→        )}
+   448→
+   449→        {/* Step 5 — appearance */}
+   450→        {step === 5 && (
+   451→          <div className="mt-5 flex flex-col gap-5 animate-[fadeUp_0.25s_ease]">
+   452→            {/* Accent hue picker */}
+   453→            <div>
+   454→              <div className="flex items-center justify-between mb-2">
+   455→                <span className="text-sm text-muted-foreground">Accent color</span>
+   456→                <span
+   457→                  className="size-6 rounded-full border-2 border-white/20"
+   458→                  style={{ background: `oklch(0.74 0.135 ${accentHue})` }}
+   459→                  aria-hidden
+   460→                />
+   461→              </div>
+   462→              <input
+   463→                type="range"
+   464→                min={0}
+   465→                max={360}
+   466→                value={accentHue}
+   467→                onChange={(e) => setAccentHue(Number(e.target.value))}
+   468→                className="w-full"
+   469→                style={{ accentColor: `oklch(0.74 0.135 ${accentHue})` }}
+   470→                aria-label="Accent color hue"
+   471→              />
+   472→              <div
+   473→                className="h-2 rounded-full mt-2"
+   474→                style={{ background: 'linear-gradient(to right, oklch(0.74 0.135 0), oklch(0.74 0.135 60), oklch(0.74 0.135 120), oklch(0.74 0.135 180), oklch(0.74 0.135 240), oklch(0.74 0.135 300), oklch(0.74 0.135 360))' }}
+   475→                aria-hidden
+   476→              />
+   477→              <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground/70 tabular">
+   478→                <span>0°</span><span>180°</span><span>360°</span>
+   479→              </div>
+   480→            </div>
+   481→
+   482→            {/* Density */}
+   483→            <div>
+   484→              <span className="text-sm text-muted-foreground block mb-2">Layout density</span>
+   485→              <div className="grid grid-cols-2 gap-2">
+   486→                {(['comfortable', 'compact'] as const).map((d) => (
+   487→                  <button
+   488→                    key={d}
+   489→                    onClick={() => setDensity(d)}
+   490→                    className={cn(
+   491→                      'rounded-xl border py-2.5 px-3 text-sm font-medium transition-all capitalize',
+   492→                      density === d ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+   493→                    )}
+   494→                  >
+   495→                    {d}
+   496→                  </button>
+   497→                ))}
+   498→              </div>
+   499→            </div>
+   500→
+   501→            {/* Glass strength */}
+   502→            <div>
+   503→              <span className="text-sm text-muted-foreground block mb-2">Glassmorphism</span>
+   504→              <div className="grid grid-cols-3 gap-2">
+   505→                {(['subtle', 'medium', 'strong'] as const).map((g) => (
+   506→                  <button
+   507→                    key={g}
+   508→                    onClick={() => setGlass(g)}
+   509→                    className={cn(
+   510→                      'rounded-xl border py-2.5 px-3 text-sm font-medium transition-all capitalize',
+   511→                      glass === g ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+   512→                    )}
+   513→                  >
+   514→                    {g}
+   515→                  </button>
+   516→                ))}
+   517→              </div>
+   518→            </div>
+   519→
+   520→            {/* Live preview card */}
+   521→            <div
+   522→              className="rounded-2xl border p-4 transition-all"
+   523→              style={{
+   524→                background: `color-mix(in oklch, oklch(0.215 0.008 ${accentHue}) ${glass === 'strong' ? 88 : glass === 'medium' ? 72 : 55}%, transparent)`,
+   525→                backdropFilter: 'blur(20px)',
+   526→                borderColor: `color-mix(in oklch, oklch(0.74 0.135 ${accentHue}) 25%, transparent)`,
+   527→              }}
+   528→            >
+   529→              <div className="flex items-center gap-2 mb-2">
+   530→                <span
+   531→                  className="grid place-items-center size-8 rounded-lg text-primary-foreground"
+   532→                  style={{ background: `oklch(0.74 0.135 ${accentHue})` }}
+   533→                >
+   534→                  <Sparkles className="size-4" />
+   535→                </span>
+   536→                <span className="text-sm font-medium">Live preview</span>
+   537→              </div>
+   538→              <p className="text-xs text-muted-foreground" style={{ padding: density === 'compact' ? '2px 0' : '4px 0' }}>
+   539→                This is how your cards and accent will look. The hue, density and glass strength apply across the whole app.
+   540→              </p>
+   541→            </div>
+   542→          </div>
+   543→        )}
+   544→
+   545→        {/* Step 6 — daily goal */}
+   546→        {step === 6 && (
+   547→          <div className="mt-6 animate-[fadeUp_0.25s_ease]">
+   548→            <div className="flex items-end justify-between mb-3">
+   549→              <span className="text-sm text-muted-foreground">Daily goal</span>
+   550→              <span className="text-4xl font-light tabular">{goal}<span className="text-sm text-muted-foreground ml-1">hrs</span></span>
+   551→            </div>
+   552→            <input
+   553→              type="range"
+   554→              min={1}
+   555→              max={12}
+   556→              value={goal}
+   557→              onChange={(e) => setGoal(Number(e.target.value))}
+   558→              className="w-full"
+   559→              style={{ accentColor: `oklch(0.74 0.135 ${accentHue})` }}
+   560→              aria-label="Daily goal in hours"
+   561→            />
+   562→            <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground/70 tabular">
+   563→              <span>1h</span><span>6h</span><span>12h</span>
+   564→            </div>
+   565→            <p className="text-xs text-muted-foreground mt-4 text-pretty">
+   566→              You can fine-tune this anytime from Settings. Your streak rewards consistency, not intensity.
+   567→            </p>
+   568→          </div>
+   569→        )}
+   570→
+   571→        {/* Footer — progress + actions */}
+   572→        <div className="flex items-center justify-between mt-7 gap-3">
+   573→          <div className="flex items-center gap-2">
+   574→            {step > 0 && (
+   575→              <button
+   576→                onClick={() => setStep(step - 1)}
+   577→                className="grid place-items-center size-8 rounded-full bg-white/5 border border-border text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+   578→                aria-label="Previous step"
+   579→              >
+   580→                <ChevronLeft className="size-4" />
+   581→              </button>
+   582→            )}
+   583→            <div className="flex gap-1.5">
+   584→              {steps.map((_, i) => (
+   585→                <span
+   586→                  key={i}
+   587→                  className={cn('h-1.5 rounded-full transition-all', i === step ? 'w-6 bg-primary' : i < step ? 'w-1.5 bg-primary/40' : 'w-1.5 bg-white/15')}
+   588→                />
+   589→              ))}
+   590→            </div>
+   591→          </div>
+   592→          <div className="flex gap-2">
+   593→            <button onClick={commit} className="rounded-full px-4 py-2 text-xs text-muted-foreground hover:text-foreground transition-colors">
+   594→              Skip
+   595→            </button>
+   596→            <button
+   597→              disabled={!canContinue}
+   598→              onClick={() => {
+   599→                if (step < last) setStep(step + 1)
+   600→                else commit()
+   601→              }}
+   602→              className="inline-flex items-center gap-1.5 rounded-full px-5 py-2 text-xs font-medium bg-primary text-primary-foreground hover:brightness-110 active:translate-y-px transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+   603→            >
+   604→              {continueLabel}
+   605→              <ArrowRight className="size-3.5" />
+   606→            </button>
+   607→          </div>
+   608→        </div>
+   609→      </div>
+   610→      <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}@keyframes popIn{from{opacity:0;transform:translateY(12px) scale(0.97)}to{opacity:1;transform:none}}@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}`}</style>
+   611→    </div>
+   612→  )
+   613→}
+   614→
+   615→function Field({ label, icon, required, children }: { label: string; icon?: React.ReactNode; required?: boolean; children: React.ReactNode }) {
+   616→  return (
+   617→    <label className="block rounded-xl border border-border bg-white/5 px-3 py-2 focus-within:border-primary/60 focus-within:bg-white/[0.07] transition-colors">
+   618→      <span className="flex items-center gap-1 text-[11px] uppercase tracking-wide text-muted-foreground mb-1">
+   619→        {icon}
+   620→        {label}
+   621→        {required && <span className="text-primary">*</span>}
+   622→      </span>
+   623→      {children}
+   624→    </label>
+   625→  )
+   626→}
+   627→
