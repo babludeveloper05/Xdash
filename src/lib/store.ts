@@ -9,6 +9,7 @@ import {
   SUBJECTS,
   notes as seedNotes,
   testHistory as seedHistory,
+  doubts as seedDoubts,
   type NoteItem,
   type SubjectId,
 } from './mock-data'
@@ -43,6 +44,32 @@ export interface NotifState {
   tests: boolean
   streak: boolean
   weekly: boolean
+}
+
+/** A single answer on a doubt thread. */
+export interface DoubtAnswer {
+  id: string
+  author: string
+  role: 'AI Tutor' | 'Faculty' | 'Student'
+  text: string
+  hoursAgo: number
+  helpful: number
+  /** True while the AI is still generating this answer. */
+  pending?: boolean
+  /** Set if the AI call failed — lets the UI show a retry affordance. */
+  error?: boolean
+}
+
+export interface DoubtItem {
+  id: string
+  text: string
+  subject: string
+  asker: string
+  upvotes: number
+  hoursAgo: number
+  resolved: boolean
+  mine: boolean
+  answers: DoubtAnswer[]
 }
 
 export interface WidgetState {
@@ -160,6 +187,15 @@ interface DeltaState {
   notifications: NotifState
   setNotifications: (patch: Partial<NotifState>) => void
 
+  // doubts
+  doubts: DoubtItem[]
+  addDoubt: (d: { text: string; subject: string; asker: string }) => string
+  addDoubtAnswer: (doubtId: string, answer: Omit<DoubtAnswer, 'id' | 'hoursAgo'>) => void
+  markDoubtAnswerError: (doubtId: string, answerId: string) => void
+  voteDoubt: (doubtId: string) => void
+  hasVotedDoubt: (doubtId: string) => boolean
+  doubtVotes: Record<string, boolean>
+
   // progress
   videoProgress: Record<string, VideoProgress>
   setVideoProgress: (id: string, fraction: number) => void
@@ -257,6 +293,74 @@ export const useStore = create<DeltaState>()(
       setNotifications: (patch) =>
         set((s) => ({ notifications: { ...s.notifications, ...patch } })),
 
+      doubts: (seedDoubts as unknown as DoubtItem[]).map((d) => ({
+        ...d,
+        // Seed doubts carry no live answers (the old `answers: number` count is
+        // preserved as a legacy display hint via the answers array length when
+        // present, otherwise zero).
+        answers: [],
+      })),
+      addDoubt: ({ text, subject, asker }) => {
+        const id = `doubt-${Date.now()}`
+        const newDoubt: DoubtItem = {
+          id,
+          text,
+          subject,
+          asker,
+          upvotes: 0,
+          hoursAgo: 0,
+          resolved: false,
+          mine: true,
+          answers: [],
+        }
+        set((s) => ({ doubts: [newDoubt, ...s.doubts] }))
+        return id
+      },
+      addDoubtAnswer: (doubtId, answer) =>
+        set((s) => ({
+          doubts: s.doubts.map((d) =>
+            d.id === doubtId
+              ? {
+                  ...d,
+                  resolved: answer.role === 'AI Tutor' ? true : d.resolved,
+                  // Drop any pending placeholder so the real answer replaces it
+                  // (not appends after it). Errored placeholders stay so the
+                  // user can still see/retry them.
+                  answers: [
+                    ...d.answers.filter((a) => !a.pending),
+                    { ...answer, id: `ans-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`, hoursAgo: 0 },
+                  ],
+                }
+              : d
+          ),
+        })),
+      markDoubtAnswerError: (doubtId, answerId) =>
+        set((s) => ({
+          doubts: s.doubts.map((d) =>
+            d.id === doubtId
+              ? {
+                  ...d,
+                  answers: d.answers.map((a) =>
+                    a.id === answerId ? { ...a, pending: false, error: true } : a
+                  ),
+                }
+              : d
+          ),
+        })),
+      voteDoubt: (doubtId) =>
+        set((s) => {
+          const voted = s.doubtVotes?.[doubtId] ?? false
+          return {
+            doubtVotes: { ...s.doubtVotes, [doubtId]: !voted },
+            doubts: s.doubts.map((d) =>
+              d.id === doubtId
+                ? { ...d, upvotes: d.upvotes + (voted ? -1 : 1) }
+                : d
+            ),
+          }
+        }),
+      hasVotedDoubt: (doubtId) => !!get().doubtVotes?.[doubtId],
+
       videoProgress: seedProgress(),
       setVideoProgress: (id, fraction) =>
         set((s) => ({
@@ -351,6 +455,8 @@ export const useStore = create<DeltaState>()(
 
       liveAttended: false,
       setLiveAttended: (v) => set({ liveAttended: v }),
+
+      doubtVotes: {},
     }),
     {
       name: 'project-delta-v1',
@@ -370,6 +476,8 @@ export const useStore = create<DeltaState>()(
         liveAttended: s.liveAttended,
         profile: s.profile,
         notifications: s.notifications,
+        doubts: s.doubts,
+        doubtVotes: s.doubtVotes,
       }),
     }
   )

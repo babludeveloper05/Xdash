@@ -602,3 +602,42 @@ Stage Summary:
 - The #1 data-loss bug from the analysis is resolved: every Settings edit now has a real, verified persistence path.
 - Bonus: notification preferences now survive reloads (previously reset every time).
 - No store version bump → no migration risk for existing user data.
+
+---
+Task ID: ai-doubt-solver
+Agent: main (Z.ai Code)
+Task: Transform the stubbed Doubts page into a working AI doubt-solver using the z-ai-web-dev-sdk. Previously the page posted doubts to unpersisted local state (lost on tab switch) and showed hardcoded mock answers.
+
+Work Log:
+- Verified the SDK works in this environment: `z-ai chat -p "Reply with exactly: DUBAI_OK"` returned the token; model is glm-4-plus.
+- Backend API route (`src/app/api/doubts/ask/route.ts`): POST handler, runtime=nodejs, force-dynamic. Validates {question, subject}, caps question at 2000 chars, allow-lists 6 subjects. System prompt pins the model to "Delta AI Tutor — an expert {subject} teacher for competitive-exam aspirants" with strict formatting rules (one-line key insight → numbered steps → concrete example → Takeaway line, ~220 words, plain text). SDK used server-side only. Robust error handling (400 for bad input, 502 for empty/failed AI response).
+- Store (`src/lib/store.ts`): added `DoubtAnswer` + `DoubtItem` interfaces (exported), a `doubts` slice seeded from mock-data, `doubtVotes` map, and 5 actions: `addDoubt` (returns id), `addDoubtAnswer` (drops pending placeholders so the real answer REPLACES them, auto-resolves on AI answer), `markDoubtAnswerError`, `voteDoubt`, `hasVotedDoubt`. Both `doubts` and `doubtVotes` added to `partialize` — threads now survive tab switches AND reloads (fixes the analysis-flagged "upvotes lost on tab switch" bug too).
+- Doubts page (`src/components/delta/pages/doubts.tsx`) full rewrite:
+  - List + votes now read from the store (persisted), not local state.
+  - New "Delta AI Tutor" gradient banner at the top with Bot icon + "Powered by GLM-4" tagline.
+  - Compose modal: subject pills (Physics/Chemistry/Maths), textarea, "Post & Solve" button (disabled while posting). Hint text: "Delta AI Tutor will answer in seconds".
+  - AI flow: on post → `addDoubt` (optimistic, doubt appears instantly) → `addDoubtAnswer` with `pending: true` (animated 3-dot "thinking" bubble with "Solving your doubt" text) → `fetch('/api/doubts/ask')` → on success `addDoubtAnswer` with the real text (placeholder replaced, doubt auto-marked Resolved) → on failure `markDoubtAnswerError` (shows retry button).
+  - New `AnswerBubble` component with 3 states: pending (animated dots), error (retry affordance), normal (AI Tutor gets a Bot avatar + Sparkles badge; others get the standard Avatar).
+  - Auto-expands the doubt thread during pending/error states so the user sees the live status.
+  - Retry function re-calls the API for an errored doubt.
+
+Bug found & fixed during verification:
+- Initial `addDoubtAnswer` used `...d.answers.map(a => ({...a, pending: false}))` which kept the pending placeholder (just un-flagged it) AND appended the real answer → 2 entries, first with empty text. Caught via localStorage inspection (`answerCount: 2, answerTextLens: [0, 722]`). Fixed to `...d.answers.filter(a => !a.pending)` so the placeholder is dropped and the real answer replaces it. Re-verified: `answerCount: 1, answerTextLens: [722], hasPending: false`. Also added a random suffix to the answer id (`ans-{timestamp}-{random}`) to avoid collisions on rapid double-answers.
+
+Agent Browser verification (end-to-end):
+- Navigated to Doubts via Spotlight (the page isn't in the top nav — by design).
+- Clicked "Ask a Doubt" → compose modal opened → typed "Why does a spinning ice skater speed up when she pulls her arms in?" → selected Physics → clicked "Post & Solve".
+- "thinking…" bubble appeared immediately with animated dots ("Solving your doubt").
+- ~2.3s later the real AI answer replaced it: "The skater speeds up due to conservation of angular momentum. 1. Angular momentum (L = Iω) remains constant... 2. When the skater pulls her arms in, her moment of inertia (I) decreases... 3. Since L must stay constant... Takeaway: Pulling mass inward reduces rotational inertia, causing faster spin to conserve angular momentum." API logged `POST /api/doubts/ask 200 in 2.3s`.
+- Doubt auto-marked RESOLVED. No errors.
+- Reloaded the page → doubt + AI answer both survived (persisted to localStorage). ✓
+- Second test with Chemistry doubt "What is the difference between an acid and a base?": returned a 722-character answer with proper chemical formulas (H⁺, OH⁻, HCl → H⁺ + Cl⁻, pH scale, lemon/soap example). ✓
+- Screenshots saved: verify-doubts-page.png, verify-ai-doubt-solved.png, verify-ai-doubt-chemistry.png.
+- 0 errors in dev.log across the entire implementation.
+
+Stage Summary:
+- 3 files: new `src/app/api/doubts/ask/route.ts` (backend SDK), `src/lib/store.ts` (+doubts slice), `src/components/delta/pages/doubts.tsx` (full rewrite).
+- The Doubts page is now a real, working AI feature — the first AI capability in the app. Students get step-by-step worked solutions in ~2-4 seconds.
+- Doubts + upvotes now persist across tab switches and reloads (bonus fix from the analysis).
+- Demonstrates the LLM skill end-to-end: backend SDK usage, server-side-only enforcement, structured pedagogical prompting, graceful loading/error UX, optimistic UI updates.
+- No new dependencies — z-ai-web-dev-sdk was already installed.

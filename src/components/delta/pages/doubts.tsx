@@ -5,12 +5,13 @@ import { motion, useReducedMotion } from 'framer-motion'
 import {
   MessageCircleQuestion, Plus, ArrowBigUp, MessageSquare, CheckCircle2,
   Search, Send, X, Clock, ChevronDown, CircleDot, Sparkles, AlertCircle,
+  RotateCcw, Bot,
 } from 'lucide-react'
 import {
   GlassCard, PageHeader, Pill, Avatar, EmptyState,
   PrimaryButton, GhostButton, Badge, Segmented,
 } from '@/components/delta/ui'
-import { doubts as seedDoubts } from '@/lib/mock-data'
+import { useStore, type DoubtItem } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
@@ -25,38 +26,6 @@ const FILTERS: { key: FilterKey; label: string }[] = [
 ]
 
 const SUBJECT_OPTIONS = ['Physics', 'Chemistry', 'Maths'] as const
-
-/* Mock answers reused for any expandable doubt — purely visual. */
-const MOCK_ANSWERS = [
-  {
-    author: 'NV Sir',
-    role: 'Faculty',
-    text:
-      'Great question. Angular momentum is conserved because the net external torque is zero — only internal forces act, and they always come in equal-opposite pairs that produce cancelling torques about the same axis.',
-    hoursAgo: 3,
-    helpful: 12,
-  },
-  {
-    author: 'Diya Mehta',
-    role: 'Student',
-    text:
-      "Think of it like this: if no one pushes the spinning wheel from outside, it just keeps spinning the same way. L = Iω stays constant. Same reason Earth keeps rotating.",
-    hoursAgo: 6,
-    helpful: 5,
-  },
-]
-
-interface Doubt {
-  id: string
-  text: string
-  subject: string
-  asker: string
-  answers: number
-  upvotes: number
-  hoursAgo: number
-  resolved: boolean
-  mine: boolean
-}
 
 const SUBJECT_TONE: Record<string, string> = {
   Physics: 'oklch(0.78 0.14 62)',
@@ -76,17 +45,23 @@ function timeAgo(h: number): string {
 }
 
 export function DoubtsPage() {
-  const [doubts, setDoubts] = useState<Doubt[]>(seedDoubts as Doubt[])
+  const doubts = useStore((s) => s.doubts)
+  const addDoubt = useStore((s) => s.addDoubt)
+  const addDoubtAnswer = useStore((s) => s.addDoubtAnswer)
+  const markDoubtAnswerError = useStore((s) => s.markDoubtAnswerError)
+  const voteDoubt = useStore((s) => s.voteDoubt)
+  const profileName = useStore((s) => s.profile.name)
+
   const [filter, setFilter] = useState<FilterKey>('all')
   const [sort, setSort] = useState<SortKey>('recent')
   const [query, setQuery] = useState('')
   const [composing, setComposing] = useState(false)
-  const [voted, setVoted] = useState<Record<string, boolean>>({})
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({})
+  const [autoExpand, setAutoExpand] = useState<Record<string, boolean>>({})
   const [draft, setDraft] = useState<{ text: string; subject: string }>({
     text: '',
     subject: 'Physics',
   })
+  const [posting, setPosting] = useState(false)
   const reduce = useReducedMotion() ?? false
 
   const openCount = doubts.filter((d) => !d.resolved).length
@@ -107,30 +82,94 @@ export function DoubtsPage() {
     return l
   }, [doubts, filter, query, sort])
 
-  function postDoubt() {
-    if (!draft.text.trim()) return
-    const newDoubt: Doubt = {
-      id: `doubt-${Date.now()}`,
-      text: draft.text.trim(),
-      subject: draft.subject,
-      asker: 'You',
-      answers: 0,
-      upvotes: 0,
-      hoursAgo: 0,
-      resolved: false,
-      mine: true,
-    }
-    setDoubts((d) => [newDoubt, ...d])
+  /**
+   * Post a doubt: optimistically add it to the feed, insert a pending
+   * "AI Tutor is thinking…" answer, then call the backend. On success the
+   * pending placeholder is replaced with the real answer; on failure it's
+   * flagged for a retry.
+   */
+  async function postDoubt() {
+    const text = draft.text.trim()
+    if (!text || posting) return
+
+    const subject = draft.subject
+    const asker = profileName || 'You'
+
+    // 1. Optimistic insert — doubt appears instantly with a pending AI answer.
+    const doubtId = addDoubt({ text, subject, asker })
+    const pendingAnswerId = `ans-pending-${doubtId}`
+    addDoubtAnswer(doubtId, {
+      author: 'Delta AI Tutor',
+      role: 'AI Tutor',
+      text: '',
+      helpful: 0,
+      pending: true,
+    })
+    // The store assigns its own id; we don't need to track pendingAnswerId.
+
+    setPosting(true)
     setDraft({ text: '', subject: 'Physics' })
     setComposing(false)
+    setAutoExpand((e) => ({ ...e, [doubtId]: true }))
+
+    // 2. Call the backend AI tutor (z-ai-web-dev-sdk lives server-side).
+    try {
+      const res = await fetch('/api/doubts/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: text, subject }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.answer) {
+        throw new Error(data?.error || 'Failed to get an answer')
+      }
+      // 3a. Replace the pending placeholder with the real answer. The store's
+      // addDoubtAnswer flattens any pending entries first, so the pending
+      // bubble is swapped out rather than duplicated.
+      addDoubtAnswer(doubtId, {
+        author: 'Delta AI Tutor',
+        role: 'AI Tutor',
+        text: data.answer,
+        helpful: 0,
+      })
+    } catch {
+      // 3b. Flag the pending answer as errored so the UI offers a retry.
+      markDoubtAnswerError(doubtId, pendingAnswerId)
+    } finally {
+      setPosting(false)
+    }
   }
 
-  function vote(id: string) {
-    const has = !!voted[id]
-    setVoted((v) => ({ ...v, [id]: !has }))
-    setDoubts((ds) =>
-      ds.map((d) => (d.id === id ? { ...d, upvotes: d.upvotes + (has ? -1 : 1) } : d))
-    )
+  /** Retry an errored AI answer for a doubt. */
+  async function retryAnswer(doubt: DoubtItem) {
+    const errored = doubt.answers.find((a) => a.error)
+    if (errored) {
+      // Clear the error flag by re-adding a fresh pending answer.
+      addDoubtAnswer(doubt.id, {
+        author: 'Delta AI Tutor',
+        role: 'AI Tutor',
+        text: '',
+        helpful: 0,
+        pending: true,
+      })
+    }
+    try {
+      const res = await fetch('/api/doubts/ask', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ question: doubt.text, subject: doubt.subject }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.answer) throw new Error(data?.error || 'retry failed')
+      addDoubtAnswer(doubt.id, {
+        author: 'Delta AI Tutor',
+        role: 'AI Tutor',
+        text: data.answer,
+        helpful: 0,
+      })
+    } catch {
+      /* leave the existing error state in place */
+    }
   }
 
   return (
@@ -143,7 +182,7 @@ export function DoubtsPage() {
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
       <PageHeader
         title="Doubts"
-        subtitle="Ask, answer, learn"
+        subtitle="Ask, answer, learn — powered by Delta AI Tutor"
         icon={<MessageCircleQuestion className="size-4" />}
         actions={
           <PrimaryButton
@@ -154,6 +193,26 @@ export function DoubtsPage() {
           </PrimaryButton>
         }
       />
+      </motion.div>
+
+      {/* AI banner */}
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5">
+        <div className="flex items-center gap-3 rounded-2xl bg-gradient-to-r from-primary/10 via-primary/[0.06] to-transparent border border-primary/15 p-3">
+          <span className="grid place-items-center size-10 rounded-xl bg-primary/15 text-primary border border-primary/25 shrink-0">
+            <Bot className="size-5" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-medium flex items-center gap-2">
+              Delta AI Tutor
+              <Badge tone="primary">
+                <Sparkles className="size-3" /> New
+              </Badge>
+            </p>
+            <p className="text-[11px] text-muted-foreground text-pretty">
+              Post any doubt and get a step-by-step worked solution in seconds. Powered by GLM-4.
+            </p>
+          </div>
+        </div>
       </motion.div>
 
       {/* Quick stats */}
@@ -248,10 +307,11 @@ export function DoubtsPage() {
         ) : (
           <div className="flex flex-col gap-2.5">
             {list.map((d) => {
-              const isVoted = !!voted[d.id]
-              const isExpanded = !!expanded[d.id]
+              const isVoted = useStore.getState().hasVotedDoubt(d.id)
+              const isExpanded = !!autoExpand[d.id] || d.answers.some((a) => a.pending || a.error)
               const isMine = d.mine
               const tone = subjectTone(d.subject)
+              const answerCount = d.answers.length
               return (
                 <GlassCard
                   key={d.id}
@@ -264,7 +324,7 @@ export function DoubtsPage() {
                     {/* Vote */}
                     <div className="flex flex-col items-center gap-1 shrink-0">
                       <button
-                        onClick={() => vote(d.id)}
+                        onClick={() => voteDoubt(d.id)}
                         aria-label={isVoted ? 'Remove upvote' : 'Upvote doubt'}
                         aria-pressed={isVoted}
                         className={cn(
@@ -319,13 +379,13 @@ export function DoubtsPage() {
                         </span>
                         <button
                           onClick={() =>
-                            setExpanded((e) => ({ ...e, [d.id]: !e[d.id] }))
+                            setAutoExpand((e) => ({ ...e, [d.id]: !e[d.id] }))
                           }
                           aria-expanded={isExpanded}
                           className="flex items-center gap-1 hover:text-foreground transition-colors"
                         >
                           <MessageSquare className="size-3" />
-                          {d.answers} {d.answers === 1 ? 'answer' : 'answers'}
+                          {answerCount} {answerCount === 1 ? 'answer' : 'answers'}
                           <ChevronDown
                             className={cn(
                               'size-3 transition-transform',
@@ -341,35 +401,18 @@ export function DoubtsPage() {
                   {isExpanded && (
                     <div className="border-t border-border bg-black/20 p-4">
                       <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium mb-3">
-                        {d.answers > 0
-                          ? `${d.answers} ${d.answers === 1 ? 'Answer' : 'Answers'}`
-                          : 'No answers yet — be the first to help'}
+                        {answerCount > 0
+                          ? `${answerCount} ${answerCount === 1 ? 'Answer' : 'Answers'}`
+                          : 'No answers yet — ask the AI Tutor'}
                       </p>
-                      {d.answers > 0 && (
+                      {answerCount > 0 && (
                         <div className="flex flex-col gap-3">
-                          {MOCK_ANSWERS.slice(0, Math.min(2, d.answers)).map((a, i) => (
-                            <div key={i} className="flex gap-3">
-                              <Avatar name={a.author} size={28} />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <span className="text-xs font-medium">{a.author}</span>
-                                  <span className="text-[10px] rounded-full bg-white/5 border border-border px-1.5 py-0.5 text-muted-foreground">
-                                    {a.role}
-                                  </span>
-                                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                                    <Clock className="size-2.5" /> {timeAgo(a.hoursAgo)}
-                                  </span>
-                                </div>
-                                <p className="text-[13px] mt-1.5 leading-relaxed text-pretty">
-                                  {a.text}
-                                </p>
-                                <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
-                                  <span className="flex items-center gap-1">
-                                    <ArrowBigUp className="size-3" /> {a.helpful} helpful
-                                  </span>
-                                </div>
-                              </div>
-                            </div>
+                          {d.answers.map((a) => (
+                            <AnswerBubble
+                              key={a.id}
+                              answer={a}
+                              onRetry={() => retryAnswer(d)}
+                            />
                           ))}
                         </div>
                       )}
@@ -386,7 +429,7 @@ export function DoubtsPage() {
       {composing && (
         <div
           className="fixed inset-0 z-[80] grid place-items-center bg-black/60 backdrop-blur-sm p-4 animate-[fadeIn_0.2s_ease]"
-          onClick={() => setComposing(false)}
+          onClick={() => !posting && setComposing(false)}
           role="dialog"
           aria-modal="true"
           aria-label="Ask a doubt"
@@ -404,9 +447,10 @@ export function DoubtsPage() {
                 <p className="text-base font-medium">Ask a Doubt</p>
               </div>
               <button
-                onClick={() => setComposing(false)}
+                onClick={() => !posting && setComposing(false)}
+                disabled={posting}
                 aria-label="Close compose dialog"
-                className="grid place-items-center size-8 rounded-full bg-white/5 hover:bg-white/10 transition-colors"
+                className="grid place-items-center size-8 rounded-full bg-white/5 hover:bg-white/10 transition-colors disabled:opacity-40"
               >
                 <X className="size-4" />
               </button>
@@ -437,16 +481,19 @@ export function DoubtsPage() {
             />
 
             <div className="flex items-center justify-between gap-2 mt-4">
-              <span className="text-[11px] text-muted-foreground">
-                {draft.text.trim() ? `${draft.text.trim().length} chars` : 'Be specific and clear'}
+              <span className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                <Sparkles className="size-3 text-primary" />
+                Delta AI Tutor will answer in seconds
               </span>
               <div className="flex items-center gap-2">
-                <GhostButton onClick={() => setComposing(false)}>Cancel</GhostButton>
+                <GhostButton onClick={() => setComposing(false)} disabled={posting}>
+                  Cancel
+                </GhostButton>
                 <PrimaryButton
                   onClick={postDoubt}
-                  disabled={!draft.text.trim()}
+                  disabled={!draft.text.trim() || posting}
                 >
-                  <Send className="size-4" /> Post Doubt
+                  <Send className="size-4" /> Post &amp; Solve
                 </PrimaryButton>
               </div>
             </div>
@@ -456,5 +503,121 @@ export function DoubtsPage() {
         </div>
       )}
     </motion.div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/*  Answer bubble — renders AI / faculty / student answers, plus the   */
+/*  pending "thinking" state and the errored retry affordance.         */
+/* ------------------------------------------------------------------ */
+
+function AnswerBubble({
+  answer,
+  onRetry,
+}: {
+  answer: {
+    author: string
+    role: string
+    text: string
+    hoursAgo: number
+    helpful: number
+    pending?: boolean
+    error?: boolean
+  }
+  onRetry: () => void
+}) {
+  const isAi = answer.role === 'AI Tutor'
+
+  // Pending state — animated "thinking" bubble.
+  if (answer.pending) {
+    return (
+      <div className="flex gap-3">
+        <span className="grid place-items-center size-9 rounded-full bg-primary/15 text-primary border border-primary/25 shrink-0">
+          <Bot className="size-4" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium">Delta AI Tutor</span>
+            <span className="text-[10px] rounded-full bg-primary/15 border border-primary/25 px-1.5 py-0.5 text-primary flex items-center gap-1">
+              <Sparkles className="size-2.5" /> AI
+            </span>
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              thinking…
+            </span>
+          </div>
+          <div className="mt-2 flex items-center gap-1.5">
+            <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.2s]" />
+            <span className="size-1.5 rounded-full bg-primary/60 animate-bounce [animation-delay:-0.1s]" />
+            <span className="size-1.5 rounded-full bg-primary/60 animate-bounce" />
+            <span className="text-[11px] text-muted-foreground ml-1">
+              Solving your doubt
+            </span>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  // Error state — retry affordance.
+  if (answer.error) {
+    return (
+      <div className="flex gap-3">
+        <span className="grid place-items-center size-9 rounded-full bg-destructive/15 text-destructive border border-destructive/25 shrink-0">
+          <AlertCircle className="size-4" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-xs font-medium">Delta AI Tutor</span>
+            <span className="text-[10px] rounded-full bg-destructive/15 border border-destructive/25 px-1.5 py-0.5 text-destructive">
+              Failed
+            </span>
+          </div>
+          <p className="text-[13px] mt-1.5 text-muted-foreground">
+            Couldn't reach the tutor. Want to try again?
+          </p>
+          <button
+            onClick={onRetry}
+            className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-border px-3 py-1.5 text-[11px] font-medium hover:bg-white/10 transition-colors"
+          >
+            <RotateCcw className="size-3" /> Retry
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // Normal answer.
+  return (
+    <div className="flex gap-3">
+      {isAi ? (
+        <span className="grid place-items-center size-9 rounded-full bg-primary/15 text-primary border border-primary/25 shrink-0">
+          <Bot className="size-4" />
+        </span>
+      ) : (
+        <Avatar name={answer.author} size={36} />
+      )}
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-medium">{answer.author}</span>
+          <span
+            className={cn(
+              'text-[10px] rounded-full border px-1.5 py-0.5',
+              isAi
+                ? 'bg-primary/15 border-primary/25 text-primary flex items-center gap-1'
+                : 'bg-white/5 border-border text-muted-foreground'
+            )}
+          >
+            {isAi && <Sparkles className="size-2.5" />}
+            {answer.role}
+          </span>
+          <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+            <Clock className="size-2.5" /> {timeAgo(answer.hoursAgo)}
+          </span>
+        </div>
+        <p className="text-[13px] mt-1.5 leading-relaxed text-pretty whitespace-pre-wrap">
+          {answer.text}
+        </p>
+      </div>
+    </div>
   )
 }
