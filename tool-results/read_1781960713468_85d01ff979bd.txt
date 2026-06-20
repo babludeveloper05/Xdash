@@ -1,0 +1,930 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useMemo, useState, useEffect, useRef } from 'react'
+     4→     4→import {
+     5→     5→  FileText, Clock, ChevronRight, Check, X, Grid3x3,
+     6→     6→  ChevronLeft, Send, RotateCcw, TrendingUp, TrendingDown, History, BarChart3,
+     7→     7→  Trophy, Target, Timer, ArrowLeft, CircleCheck, CircleDot, Bookmark, Inbox,
+     8→     8→} from 'lucide-react'
+     9→     9→import {
+    10→    10→  GlassCard, PageHeader, Pill, PrimaryButton, GhostButton, IconButton,
+    11→    11→  ProgressRing, MetricCard, Badge, EmptyState,
+    12→    12→} from '@/components/delta/ui'
+    13→    13→import { useStore, type HistoryRow } from '@/lib/store'
+    14→    14→import { tests, buildQuestions, type TestItem, type Question } from '@/lib/mock-data'
+    15→    15→import { cn } from '@/lib/utils'
+    16→    16→
+    17→    17→type View = 'available' | 'attempt' | 'results' | 'history' | 'analysis'
+    18→    18→type BadgeTone = 'default' | 'primary' | 'success' | 'warning' | 'destructive'
+    19→    19→
+    20→    20→const TEST_TYPES = ['All', 'JEE Main', 'JEE Advanced', 'Chapter Test', 'Full Syllabus', 'Previous Year'] as const
+    21→    21→const DIFFICULTIES = ['All', 'Easy', 'Moderate', 'Hard'] as const
+    22→    22→
+    23→    23→interface ResultData {
+    24→    24→  test: TestItem
+    25→    25→  questions: Question[]
+    26→    26→  answers: Record<number, number>
+    27→    27→  marked: Record<number, boolean>
+    28→    28→  correct: number
+    29→    29→  wrong: number
+    30→    30→  unattempted: number
+    31→    31→  score: number
+    32→    32→  total: number
+    33→    33→  timeTaken: number
+    34→    34→}
+    35→    35→
+    36→    36→export function TestsPage() {
+    37→    37→  const [view, setView] = useState<View>('available')
+    38→    38→  const [activeTest, setActiveTest] = useState<TestItem | null>(null)
+    39→    39→  const [lastResult, setLastResult] = useState<ResultData | null>(null)
+    40→    40→  const [analysisRow, setAnalysisRow] = useState<HistoryRow | null>(null)
+    41→    41→
+    42→    42→  return (
+    43→    43→    <div className="h-full">
+    44→    44→      {view === 'available' && (
+    45→    45→        <AvailableView
+    46→    46→          onStart={(t) => {
+    47→    47→            setActiveTest(t)
+    48→    48→            setView('attempt')
+    49→    49→          }}
+    50→    50→          onHistory={() => setView('history')}
+    51→    51→        />
+    52→    52→      )}
+    53→    53→      {view === 'attempt' && activeTest && (
+    54→    54→        <AttemptView
+    55→    55→          test={activeTest}
+    56→    56→          onSubmit={(r) => {
+    57→    57→            setLastResult(r)
+    58→    58→            setView('results')
+    59→    59→          }}
+    60→    60→          onExit={() => setView('available')}
+    61→    61→        />
+    62→    62→      )}
+    63→    63→      {view === 'results' && lastResult && (
+    64→    64→        <ResultsView
+    65→    65→          result={lastResult}
+    66→    66→          onReview={() => {
+    67→    67→            setAnalysisRow(null)
+    68→    68→            setView('analysis')
+    69→    69→          }}
+    70→    70→          onDone={() => setView('available')}
+    71→    71→        />
+    72→    72→      )}
+    73→    73→      {view === 'history' && (
+    74→    74→        <HistoryView
+    75→    75→          onBack={() => setView('available')}
+    76→    76→          onAnalyze={(row) => {
+    77→    77→            setAnalysisRow(row)
+    78→    78→            setView('analysis')
+    79→    79→          }}
+    80→    80→        />
+    81→    81→      )}
+    82→    82→      {view === 'analysis' && (
+    83→    83→        <AnalysisView
+    84→    84→          result={lastResult}
+    85→    85→          row={analysisRow}
+    86→    86→          onBack={() => setView(lastResult ? 'results' : 'history')}
+    87→    87→        />
+    88→    88→      )}
+    89→    89→    </div>
+    90→    90→  )
+    91→    91→}
+    92→    92→
+    93→    93→/* ---------------- AVAILABLE ---------------- */
+    94→    94→function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void; onHistory: () => void }) {
+    95→    95→  const history = useStore((s) => s.history)
+    96→    96→  const [type, setType] = useState<string>('All')
+    97→    97→  const [diff, setDiff] = useState<string>('All')
+    98→    98→
+    99→    99→  const dueCount = useMemo(() => tests.filter((t) => t.deadlineHours !== null).length, [])
+   100→   100→  const avgPct = useMemo(() => {
+   101→   101→    if (!history.length) return 0
+   102→   102→    return Math.round((history.reduce((acc, h) => acc + h.score / h.total, 0) / history.length) * 100)
+   103→   103→  }, [history])
+   104→   104→  const recentTrend = useMemo(() => {
+   105→   105→    if (history.length < 2) return 0
+   106→   106→    const recent = history.slice(0, 5)
+   107→   107→    return Math.round(recent.reduce((a, h) => a + h.trend, 0) / recent.length)
+   108→   108→  }, [history])
+   109→   109→
+   110→   110→  const list = useMemo(
+   111→   111→    () =>
+   112→   112→      tests.filter(
+   113→   113→        (t) =>
+   114→   114→          (type === 'All' || t.type === type) &&
+   115→   115→          (diff === 'All' || t.difficulty === diff)
+   116→   116→      ),
+   117→   117→    [type, diff]
+   118→   118→  )
+   119→   119→
+   120→   120→  return (
+   121→   121→    <div className="h-full flex flex-col gap-4">
+   122→   122→      <PageHeader
+   123→   123→        title="Tests"
+   124→   124→        subtitle={`${dueCount} due · ${tests.length} available · ${history.length} taken`}
+   125→   125→        icon={<FileText className="size-5" />}
+   126→   126→        actions={
+   127→   127→          <GhostButton onClick={onHistory}>
+   128→   128→            <History className="size-3.5" /> History
+   129→   129→          </GhostButton>
+   130→   130→        }
+   131→   131→      />
+   132→   132→
+   133→   133→      {/* Stat row */}
+   134→   134→      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+   135→   135→        <MetricCard label="Tests Due" value={dueCount} sub="Active deadlines" icon={<Clock className="size-3.5" />} />
+   136→   136→        <MetricCard label="Avg Score" value={`${avgPct}%`} sub="Across attempts" icon={<Target className="size-3.5" />} />
+   137→   137→        <MetricCard
+   138→   138→          label="Tests Taken"
+   139→   139→          value={history.length}
+   140→   140→          sub="All time"
+   141→   141→          icon={<BarChart3 className="size-3.5" />}
+   142→   142→          trend={{ value: recentTrend, suffix: 'pts' }}
+   143→   143→        />
+   144→   144→        <MetricCard label="Available" value={tests.length} sub="Mock bank" icon={<FileText className="size-3.5" />} />
+   145→   145→      </div>
+   146→   146→
+   147→   147→      {/* Filters */}
+   148→   148→      <div className="flex flex-col gap-2">
+   149→   149→        <div className="flex items-center gap-1.5 flex-wrap">
+   150→   150→          <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">Type</span>
+   151→   151→          {TEST_TYPES.map((t) => (
+   152→   152→            <Pill key={t} active={type === t} onClick={() => setType(t)}>
+   153→   153→              {t}
+   154→   154→            </Pill>
+   155→   155→          ))}
+   156→   156→        </div>
+   157→   157→        <div className="flex items-center gap-1.5 flex-wrap">
+   158→   158→          <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">Level</span>
+   159→   159→          {DIFFICULTIES.map((d) => (
+   160→   160→            <Pill key={d} active={diff === d} onClick={() => setDiff(d)}>
+   161→   161→              {d}
+   162→   162→            </Pill>
+   163→   163→          ))}
+   164→   164→        </div>
+   165→   165→      </div>
+   166→   166→
+   167→   167→      {/* Test grid */}
+   168→   168→      <div className="flex-1 overflow-y-auto scroll-thin pr-1 min-h-0">
+   169→   169→        {list.length === 0 ? (
+   170→   170→          <EmptyState
+   171→   171→            icon={<Inbox className="size-6" />}
+   172→   172→            title="No tests match"
+   173→   173→            hint="Try a different type or difficulty filter."
+   174→   174→          />
+   175→   175→        ) : (
+   176→   176→          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-1">
+   177→   177→            {list.map((t) => (
+   178→   178→              <TestCard key={t.id} test={t} onStart={() => onStart(t)} />
+   179→   179→            ))}
+   180→   180→          </div>
+   181→   181→        )}
+   182→   182→      </div>
+   183→   183→    </div>
+   184→   184→  )
+   185→   185→}
+   186→   186→
+   187→   187→function TestCard({ test, onStart }: { test: TestItem; onStart: () => void }) {
+   188→   188→  const due = test.deadlineHours
+   189→   189→  const urgent = due !== null && due <= 24
+   190→   190→  const soon = due !== null && due > 24 && due <= 72
+   191→   191→
+   192→   192→  const deadlineTone: BadgeTone = urgent ? 'destructive' : soon ? 'warning' : 'default'
+   193→   193→  const deadlineLabel =
+   194→   194→    due === null ? 'No deadline' : due <= 24 ? `${due}h left` : `${Math.round(due / 24)}d left`
+   195→   195→
+   196→   196→  const diffTone: BadgeTone =
+   197→   197→    test.difficulty === 'Hard' ? 'destructive' : test.difficulty === 'Moderate' ? 'warning' : 'success'
+   198→   198→
+   199→   199→  return (
+   200→   200→    <GlassCard className="p-4 flex flex-col gap-3 group transition-all duration-300 hover:elev-2 hover:-translate-y-0.5">
+   201→   201→      <div className="flex items-start justify-between gap-2">
+   202→   202→        <span className="grid place-items-center size-10 rounded-xl bg-primary/12 text-primary border border-primary/15 shrink-0">
+   203→   203→          <FileText className="size-5" />
+   204→   204→        </span>
+   205→   205→        <Badge tone={deadlineTone}>
+   206→   206→          <Clock className="size-2.5" /> {deadlineLabel}
+   207→   207→        </Badge>
+   208→   208→      </div>
+   209→   209→      <div className="min-w-0">
+   210→   210→        <p className="text-sm font-medium leading-snug line-clamp-2 text-pretty">{test.name}</p>
+   211→   211→        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+   212→   212→          <Badge tone="primary">{test.type}</Badge>
+   213→   213→          <Badge tone="default">{test.subject}</Badge>
+   214→   214→          <Badge tone={diffTone}>{test.difficulty}</Badge>
+   215→   215→        </div>
+   216→   216→      </div>
+   217→   217→      <div className="flex items-center gap-3 text-[11px] text-muted-foreground tabular">
+   218→   218→        <span className="flex items-center gap-1">
+   219→   219→          <Grid3x3 className="size-3" /> {test.questionCount} Q
+   220→   220→        </span>
+   221→   221→        <span className="flex items-center gap-1">
+   222→   222→          <Timer className="size-3" /> {test.durationMin}m
+   223→   223→        </span>
+   224→   224→      </div>
+   225→   225→      <PrimaryButton onClick={onStart} className="mt-1 w-full">
+   226→   226→        Start Test <ChevronRight className="size-3.5" />
+   227→   227→      </PrimaryButton>
+   228→   228→    </GlassCard>
+   229→   229→  )
+   230→   230→}
+   231→   231→
+   232→   232→/* ---------------- ATTEMPT ---------------- */
+   233→   233→function AttemptView({
+   234→   234→  test,
+   235→   235→  onSubmit,
+   236→   236→  onExit,
+   237→   237→}: {
+   238→   238→  test: TestItem
+   239→   239→  onSubmit: (r: ResultData) => void
+   240→   240→  onExit: () => void
+   241→   241→}) {
+   242→   242→  const count = Math.min(test.questionCount, 30) // keep attempt UI snappy
+   243→   243→  const questions = useMemo(() => buildQuestions(count), [count])
+   244→   244→  const [idx, setIdx] = useState(0)
+   245→   245→  const [answers, setAnswers] = useState<Record<number, number>>({})
+   246→   246→  const [marked, setMarked] = useState<Record<number, boolean>>({})
+   247→   247→  const [visited, setVisited] = useState<Record<number, boolean>>({ 0: true })
+   248→   248→  const [secondsLeft, setSecondsLeft] = useState(test.durationMin * 60)
+   249→   249→  const [saved, setSaved] = useState(false)
+   250→   250→  const [palette, setPalette] = useState(true)
+   251→   251→  const [confirming, setConfirming] = useState(false)
+   252→   252→
+   253→   253→  // Auto-save indicator
+   254→   254→  useEffect(() => {
+   255→   255→    setSaved(false)
+   256→   256→    const t = setTimeout(() => setSaved(true), 600)
+   257→   257→    return () => clearTimeout(t)
+   258→   258→  }, [answers, marked])
+   259→   259→
+   260→   260→  // Countdown
+   261→   261→  useEffect(() => {
+   262→   262→    if (secondsLeft <= 0) {
+   263→   263→      handleSubmit()
+   264→   264→      return
+   265→   265→    }
+   266→   266→    const iv = setInterval(() => setSecondsLeft((s) => s - 1), 1000)
+   267→   267→    return () => clearInterval(iv)
+   268→   268→  }, [secondsLeft])
+   269→   269→
+   270→   270→  const q = questions[idx]
+   271→   271→  const answeredCount = Object.keys(answers).length
+   272→   272→  const markedCount = Object.values(marked).filter(Boolean).length
+   273→   273→  const progress = answeredCount / questions.length
+   274→   274→
+   275→   275→  function go(n: number) {
+   276→   276→    const next = Math.max(0, Math.min(questions.length - 1, n))
+   277→   277→    setIdx(next)
+   278→   278→    setVisited((v) => ({ ...v, [next]: true }))
+   279→   279→  }
+   280→   280→
+   281→   281→  function handleSubmit() {
+   282→   282→    let correct = 0
+   283→   283→    let wrong = 0
+   284→   284→    questions.forEach((qq, i) => {
+   285→   285→      if (answers[i] === undefined) return
+   286→   286→      if (answers[i] === qq.correctIndex) correct++
+   287→   287→      else wrong++
+   288→   288→    })
+   289→   289→    const unattempted = questions.length - correct - wrong
+   290→   290→    const score = correct * 4 - wrong // JEE marking
+   291→   291→    const scaledTotal = questions.length * 4
+   292→   292→    onSubmit({
+   293→   293→      test,
+   294→   294→      questions,
+   295→   295→      answers,
+   296→   296→      marked,
+   297→   297→      correct,
+   298→   298→      wrong,
+   299→   299→      unattempted,
+   300→   300→      score: Math.max(0, score),
+   301→   301→      total: scaledTotal,
+   302→   302→      timeTaken: Math.round((test.durationMin * 60 - secondsLeft) / 60),
+   303→   303→    })
+   304→   304→  }
+   305→   305→
+   306→   306→  const mm = Math.floor(secondsLeft / 60)
+   307→   307→  const ss = secondsLeft % 60
+   308→   308→  const lowTime = secondsLeft < 300
+   309→   309→
+   310→   310→  function statusOf(i: number): 'answered' | 'marked' | 'visited' | 'untouched' {
+   311→   311→    if (marked[i]) return 'marked'
+   312→   312→    if (answers[i] !== undefined) return 'answered'
+   313→   313→    if (visited[i]) return 'visited'
+   314→   314→    return 'untouched'
+   315→   315→  }
+   316→   316→
+   317→   317→  return (
+   318→   318→    <div className="h-full flex flex-col">
+   319→   319→      {/* Top bar */}
+   320→   320→      <div className="flex items-center justify-between gap-3 pb-3 border-b border-border flex-wrap">
+   321→   321→        <div className="flex items-center gap-3 min-w-0">
+   322→   322→          <IconButton label="Exit test" onClick={onExit}>
+   323→   323→            <ArrowLeft className="size-4" />
+   324→   324→          </IconButton>
+   325→   325→          <div className="min-w-0">
+   326→   326→            <p className="text-sm font-medium truncate">{test.name}</p>
+   327→   327→            <p className="text-[11px] text-muted-foreground">
+   328→   328→              {questions.length} questions · +4 / −1 marking
+   329→   329→            </p>
+   330→   330→          </div>
+   331→   331→        </div>
+   332→   332→        <div className="flex items-center gap-3">
+   333→   333→          <span
+   334→   334→            className={cn(
+   335→   335→              'text-[11px] flex items-center gap-1.5 transition-colors',
+   336→   336→              saved ? 'text-success' : 'text-muted-foreground'
+   337→   337→            )}
+   338→   338→          >
+   339→   339→            <CircleCheck className="size-3.5" /> {saved ? 'Auto-saved' : 'Saving...'}
+   340→   340→          </span>
+   341→   341→          <div
+   342→   342→            className={cn(
+   343→   343→              'flex items-center gap-2 rounded-full px-3 py-1.5 tabular font-medium border',
+   344→   344→              lowTime
+   345→   345→                ? 'bg-destructive/15 text-destructive border-destructive/30 animate-pulse'
+   346→   346→                : 'bg-white/5 border-border'
+   347→   347→            )}
+   348→   348→          >
+   349→   349→            <Timer className="size-4" /> {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
+   350→   350→          </div>
+   351→   351→          <button
+   352→   352→            onClick={() => setPalette((p) => !p)}
+   353→   353→            className="grid place-items-center size-9 rounded-full bg-white/5 border border-border hover:bg-white/10 lg:hidden"
+   354→   354→            aria-label="Toggle question palette"
+   355→   355→          >
+   356→   356→            <Grid3x3 className="size-4" />
+   357→   357→          </button>
+   358→   358→          <PrimaryButton onClick={() => setConfirming(true)}>
+   359→   359→            <Send className="size-3.5" /> Submit
+   360→   360→          </PrimaryButton>
+   361→   361→        </div>
+   362→   362→      </div>
+   363→   363→
+   364→   364→      <div className="flex-1 flex gap-4 pt-4 min-h-0">
+   365→   365→        {/* Question area */}
+   366→   366→        <GlassCard className="flex-1 min-w-0 p-5 flex flex-col">
+   367→   367→          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+   368→   368→            <span className="text-sm text-muted-foreground tabular">
+   369→   369→              Question {idx + 1} of {questions.length}
+   370→   370→            </span>
+   371→   371→            <button
+   372→   372→              onClick={() => setMarked((m) => ({ ...m, [idx]: !m[idx] }))}
+   373→   373→              className={cn(
+   374→   374→                'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs border transition-colors',
+   375→   375→                marked[idx]
+   376→   376→                  ? 'bg-warning/15 text-warning border-warning/30'
+   377→   377→                  : 'bg-white/5 border-border text-muted-foreground hover:text-foreground'
+   378→   378→              )}
+   379→   379→            >
+   380→   380→              <Bookmark className={cn('size-3.5', marked[idx] && 'fill-current')} />
+   381→   381→              {marked[idx] ? 'Marked for review' : 'Mark for review'}
+   382→   382→            </button>
+   383→   383→          </div>
+   384→   384→
+   385→   385→          {/* Progress bar */}
+   386→   386→          <div className="h-1 rounded-full bg-white/5 overflow-hidden mb-4">
+   387→   387→            <div
+   388→   388→              className="h-full bg-primary rounded-full transition-all duration-300"
+   389→   389→              style={{ width: `${progress * 100}%` }}
+   390→   390→            />
+   391→   391→          </div>
+   392→   392→
+   393→   393→          <div className="flex-1 overflow-y-auto scroll-thin pr-1">
+   394→   394→            <p className="text-base leading-relaxed mb-5 text-pretty">{q.text}</p>
+   395→   395→            <div className="space-y-2.5 max-w-2xl">
+   396→   396→              {q.options.map((opt, oi) => {
+   397→   397→                const selected = answers[idx] === oi
+   398→   398→                return (
+   399→   399→                  <button
+   400→   400→                    key={oi}
+   401→   401→                    onClick={() => setAnswers((a) => ({ ...a, [idx]: oi }))}
+   402→   402→                    className={cn(
+   403→   403→                      'w-full flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all duration-200',
+   404→   404→                      selected
+   405→   405→                        ? 'bg-primary/15 border-primary/40'
+   406→   406→                        : 'bg-white/[0.03] border-border hover:bg-white/[0.06] hover:border-border/80'
+   407→   407→                    )}
+   408→   408→                  >
+   409→   409→                    <span
+   410→   410→                      className={cn(
+   411→   411→                        'grid place-items-center size-7 rounded-full border text-xs font-medium shrink-0 transition-colors',
+   412→   412→                        selected
+   413→   413→                          ? 'bg-primary text-primary-foreground border-primary'
+   414→   414→                          : 'border-border text-muted-foreground'
+   415→   415→                      )}
+   416→   416→                    >
+   417→   417→                      {String.fromCharCode(65 + oi)}
+   418→   418→                    </span>
+   419→   419→                    <span className="text-sm">{opt}</span>
+   420→   420→                    {selected && <Check className="size-4 ml-auto text-primary" />}
+   421→   421→                  </button>
+   422→   422→                )
+   423→   423→              })}
+   424→   424→            </div>
+   425→   425→          </div>
+   426→   426→
+   427→   427→          {/* Nav */}
+   428→   428→          <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-border">
+   429→   429→            <button
+   430→   430→              onClick={() => go(idx - 1)}
+   431→   431→              disabled={idx === 0}
+   432→   432→              className="flex items-center gap-1.5 rounded-full bg-white/5 border border-border px-4 py-2 text-sm disabled:opacity-40 disabled:pointer-events-none hover:bg-white/10"
+   433→   433→            >
+   434→   434→              <ChevronLeft className="size-4" /> Previous
+   435→   435→            </button>
+   436→   436→            <div className="flex items-center gap-2">
+   437→   437→              <button
+   438→   438→                onClick={() =>
+   439→   439→                  setAnswers((a) => {
+   440→   440→                    const c = { ...a }
+   441→   441→                    delete c[idx]
+   442→   442→                    return c
+   443→   443→                  })
+   444→   444→                }
+   445→   445→                className="rounded-full bg-white/5 border border-border px-4 py-2 text-sm hover:bg-white/10 text-muted-foreground"
+   446→   446→              >
+   447→   447→                Clear
+   448→   448→              </button>
+   449→   449→              <button
+   450→   450→                onClick={() => go(idx + 1)}
+   451→   451→                disabled={idx === questions.length - 1}
+   452→   452→                className="flex items-center gap-1.5 rounded-full bg-cream text-cream-foreground px-4 py-2 text-sm font-medium disabled:opacity-40 disabled:pointer-events-none"
+   453→   453→              >
+   454→   454→                Save &amp; Next <ChevronRight className="size-4" />
+   455→   455→              </button>
+   456→   456→            </div>
+   457→   457→          </div>
+   458→   458→        </GlassCard>
+   459→   459→
+   460→   460→        {/* Palette */}
+   461→   461→        {palette && (
+   462→   462→          <GlassCard className="w-64 shrink-0 p-4 flex-col hidden lg:flex">
+   463→   463→            <div className="grid grid-cols-2 gap-2 mb-4 text-[11px]">
+   464→   464→              <Legend color="bg-primary" label={`Answered ${answeredCount}`} />
+   465→   465→              <Legend color="bg-warning" label={`Marked ${markedCount}`} />
+   466→   466→              <Legend color="bg-white/25" label="Visited" />
+   467→   467→              <Legend color="bg-white/5 border border-border" label="Not visited" />
+   468→   468→            </div>
+   469→   469→            <div className="flex-1 overflow-y-auto scroll-thin">
+   470→   470→              <div className="grid grid-cols-5 gap-2">
+   471→   471→                {questions.map((_, i) => {
+   472→   472→                  const st = statusOf(i)
+   473→   473→                  return (
+   474→   474→                    <button
+   475→   475→                      key={i}
+   476→   476→                      onClick={() => go(i)}
+   477→   477→                      className={cn(
+   478→   478→                        'aspect-square rounded-lg text-xs font-medium grid place-items-center transition-all',
+   479→   479→                        i === idx && 'ring-2 ring-cream ring-offset-2 ring-offset-card',
+   480→   480→                        st === 'answered' && 'bg-primary text-primary-foreground',
+   481→   481→                        st === 'marked' && 'bg-warning text-black',
+   482→   482→                        st === 'visited' && 'bg-white/20 text-foreground',
+   483→   483→                        st === 'untouched' && 'bg-white/5 border border-border text-muted-foreground'
+   484→   484→                      )}
+   485→   485→                    >
+   486→   486→                      {i + 1}
+   487→   487→                    </button>
+   488→   488→                  )
+   489→   489→                })}
+   490→   490→              </div>
+   491→   491→            </div>
+   492→   492→            <PrimaryButton onClick={() => setConfirming(true)} className="mt-4 w-full">
+   493→   493→              <Send className="size-3.5" /> Submit Test
+   494→   494→            </PrimaryButton>
+   495→   495→          </GlassCard>
+   496→   496→        )}
+   497→   497→      </div>
+   498→   498→
+   499→   499→      {/* Submit confirm */}
+   500→   500→      {confirming && (
+   501→   501→        <div
+   502→   502→          className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/60 backdrop-blur-sm"
+   503→   503→          onClick={() => setConfirming(false)}
+   504→   504→        >
+   505→   505→          <div
+   506→   506→            className="w-full max-w-sm glass-strong rounded-2xl elev-3 p-5 flex flex-col gap-4"
+   507→   507→            onClick={(e) => e.stopPropagation()}
+   508→   508→            role="dialog"
+   509→   509→            aria-modal="true"
+   510→   510→            aria-label="Submit test confirmation"
+   511→   511→          >
+   512→   512→            <div className="flex items-center gap-3">
+   513→   513→              <span className="grid place-items-center size-10 rounded-xl bg-primary/12 text-primary border border-primary/15">
+   514→   514→                <Send className="size-5" />
+   515→   515→              </span>
+   516→   516→              <div>
+   517→   517→                <p className="text-sm font-medium">Submit test?</p>
+   518→   518→                <p className="text-xs text-muted-foreground">
+   519→   519→                  {answeredCount} answered · {questions.length - answeredCount} pending
+   520→   520→                </p>
+   521→   521→              </div>
+   522→   522→            </div>
+   523→   523→            <div className="flex items-center gap-2 justify-end">
+   524→   524→              <GhostButton onClick={() => setConfirming(false)}>Keep going</GhostButton>
+   525→   525→              <PrimaryButton onClick={handleSubmit}>
+   526→   526→                <Check className="size-3.5" /> Submit now
+   527→   527→              </PrimaryButton>
+   528→   528→            </div>
+   529→   529→          </div>
+   530→   530→        </div>
+   531→   531→      )}
+   532→   532→    </div>
+   533→   533→  )
+   534→   534→}
+   535→   535→
+   536→   536→function Legend({ color, label }: { color: string; label: string }) {
+   537→   537→  return (
+   538→   538→    <span className="flex items-center gap-1.5 text-muted-foreground">
+   539→   539→      <span className={cn('size-3 rounded', color)} /> {label}
+   540→   540→    </span>
+   541→   541→  )
+   542→   542→}
+   543→   543→
+   544→   544→/* ---------------- RESULTS ---------------- */
+   545→   545→function ResultsView({
+   546→   546→  result,
+   547→   547→  onReview,
+   548→   548→  onDone,
+   549→   549→}: {
+   550→   550→  result: ResultData
+   551→   551→  onReview: () => void
+   552→   552→  onDone: () => void
+   553→   553→}) {
+   554→   554→  const submit = useStore((s) => s.submitTest)
+   555→   555→  const history = useStore((s) => s.history)
+   556→   556→  const saved = useRef(false)
+   557→   557→  useEffect(() => {
+   558→   558→    if (saved.current) return
+   559→   559→    saved.current = true
+   560→   560→    const prevScore = history[0]?.score ?? 0
+   561→   561→    submit({
+   562→   562→      name: result.test.name,
+   563→   563→      type: result.test.type,
+   564→   564→      subject: result.test.subject,
+   565→   565→      score: result.score,
+   566→   566→      total: result.total,
+   567→   567→      timeTaken: result.timeTaken,
+   568→   568→      trend: history.length ? result.score - prevScore : 0,
+   569→   569→    })
+   570→   570→  }, [result, submit])
+   571→   571→
+   572→   572→  const pct = (result.score / result.total) * 100
+   573→   573→  const accuracy =
+   574→   574→    result.correct + result.wrong > 0 ? (result.correct / (result.correct + result.wrong)) * 100 : 0
+   575→   575→  const percentile = Math.min(99.9, 40 + pct * 0.6)
+   576→   576→
+   577→   577→  return (
+   578→   578→    <div className="h-full overflow-y-auto scroll-thin">
+   579→   579→      <div className="max-w-4xl mx-auto flex flex-col gap-4 py-2">
+   580→   580→        <div className="text-center py-4">
+   581→   581→          <span className="inline-grid place-items-center size-16 rounded-2xl bg-primary/15 text-primary mb-3 border border-primary/20">
+   582→   582→            <Trophy className="size-8" />
+   583→   583→          </span>
+   584→   584→          <h1 className="text-2xl font-light tracking-tight">Test Submitted</h1>
+   585→   585→          <p className="text-sm text-muted-foreground mt-1">{result.test.name}</p>
+   586→   586→        </div>
+   587→   587→
+   588→   588→        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+   589→   589→          <GlassCard className="p-6 flex flex-col items-center justify-center md:col-span-1">
+   590→   590→            <ProgressRing value={pct / 100} size={140} stroke={10} valueClass="text-primary">
+   591→   591→              <div className="text-center">
+   592→   592→                <div className="text-3xl font-light tabular">{result.score}</div>
+   593→   593→                <div className="text-xs text-muted-foreground">/ {result.total}</div>
+   594→   594→              </div>
+   595→   595→            </ProgressRing>
+   596→   596→            <p className="mt-3 text-sm text-muted-foreground">Final Score</p>
+   597→   597→          </GlassCard>
+   598→   598→
+   599→   599→          <div className="md:col-span-2 grid grid-cols-2 gap-4">
+   600→   600→            <ResultStat icon={<Check className="size-4" />} label="Correct" value={result.correct} tone="text-success" />
+   601→   601→            <ResultStat icon={<X className="size-4" />} label="Wrong" value={result.wrong} tone="text-destructive" />
+   602→   602→            <ResultStat
+   603→   603→              icon={<CircleDot className="size-4" />}
+   604→   604→              label="Unattempted"
+   605→   605→              value={result.unattempted}
+   606→   606→              tone="text-muted-foreground"
+   607→   607→            />
+   608→   608→            <ResultStat
+   609→   609→              icon={<Target className="size-4" />}
+   610→   610→              label="Accuracy"
+   611→   611→              value={`${accuracy.toFixed(0)}%`}
+   612→   612→              tone="text-primary"
+   613→   613→            />
+   614→   614→            <ResultStat
+   615→   615→              icon={<TrendingUp className="size-4" />}
+   616→   616→              label="Percentile"
+   617→   617→              value={percentile.toFixed(1)}
+   618→   618→              tone="text-warning"
+   619→   619→            />
+   620→   620→            <ResultStat
+   621→   621→              icon={<Timer className="size-4" />}
+   622→   622→              label="Time"
+   623→   623→              value={`${result.timeTaken}m`}
+   624→   624→              tone="text-foreground"
+   625→   625→            />
+   626→   626→          </div>
+   627→   627→        </div>
+   628→   628→
+   629→   629→        <div className="flex items-center justify-center gap-3 pt-2">
+   630→   630→          <PrimaryButton onClick={onReview}>
+   631→   631→            <BarChart3 className="size-3.5" /> Review &amp; Analysis
+   632→   632→          </PrimaryButton>
+   633→   633→          <GhostButton onClick={onDone}>
+   634→   634→            <RotateCcw className="size-3.5" /> Back to Tests
+   635→   635→          </GhostButton>
+   636→   636→        </div>
+   637→   637→      </div>
+   638→   638→    </div>
+   639→   639→  )
+   640→   640→}
+   641→   641→
+   642→   642→function ResultStat({
+   643→   643→  icon,
+   644→   644→  label,
+   645→   645→  value,
+   646→   646→  tone,
+   647→   647→}: {
+   648→   648→  icon: React.ReactNode
+   649→   649→  label: string
+   650→   650→  value: React.ReactNode
+   651→   651→  tone: string
+   652→   652→}) {
+   653→   653→  return (
+   654→   654→    <GlassCard className="p-4 flex flex-col gap-1">
+   655→   655→      <span className={cn('flex items-center gap-1.5 text-xs', tone)}>
+   656→   656→        {icon} {label}
+   657→   657→      </span>
+   658→   658→      <span className="text-2xl font-light tabular">{value}</span>
+   659→   659→    </GlassCard>
+   660→   660→  )
+   661→   661→}
+   662→   662→
+   663→   663→/* ---------------- HISTORY ---------------- */
+   664→   664→function HistoryView({
+   665→   665→  onBack,
+   666→   666→  onAnalyze,
+   667→   667→}: {
+   668→   668→  onBack: () => void
+   669→   669→  onAnalyze: (row: HistoryRow) => void
+   670→   670→}) {
+   671→   671→  const history = useStore((s) => s.history)
+   672→   672→
+   673→   673→  return (
+   674→   674→    <div className="h-full flex flex-col gap-4">
+   675→   675→      <PageHeader
+   676→   676→        title="Test History"
+   677→   677→        subtitle={`${history.length} attempts recorded`}
+   678→   678→        icon={<History className="size-5" />}
+   679→   679→        actions={
+   680→   680→          <IconButton label="Back to tests" onClick={onBack}>
+   681→   681→            <ArrowLeft className="size-4" />
+   682→   682→          </IconButton>
+   683→   683→        }
+   684→   684→      />
+   685→   685→
+   686→   686→      <GlassCard className="flex-1 overflow-hidden flex flex-col min-h-0">
+   687→   687→        <div className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">
+   688→   688→          <span className="col-span-5">Test</span>
+   689→   689→          <span className="col-span-2">Score</span>
+   690→   690→          <span className="col-span-2">Time</span>
+   691→   691→          <span className="col-span-2">Trend</span>
+   692→   692→          <span className="col-span-1"></span>
+   693→   693→        </div>
+   694→   694→        <div className="flex-1 overflow-y-auto scroll-thin">
+   695→   695→          {history.length === 0 ? (
+   696→   696→            <EmptyState
+   697→   697→              icon={<Inbox className="size-6" />}
+   698→   698→              title="No attempts yet"
+   699→   699→              hint="Take a test to start building your history."
+   700→   700→            />
+   701→   701→          ) : (
+   702→   702→            history.map((h) => {
+   703→   703→              const pct = (h.score / h.total) * 100
+   704→   704→              return (
+   705→   705→                <button
+   706→   706→                  key={h.id}
+   707→   707→                  onClick={() => onAnalyze(h)}
+   708→   708→                  className="w-full grid grid-cols-12 gap-3 px-4 py-3 border-b border-border/50 hover:bg-white/[0.04] text-left items-center transition-colors"
+   709→   709→                >
+   710→   710→                  <div className="col-span-5 min-w-0">
+   711→   711→                    <p className="text-sm font-medium truncate">{h.name}</p>
+   712→   712→                    <p className="text-[11px] text-muted-foreground">
+   713→   713→                      {h.type} · {h.daysAgo === 0 ? 'Today' : `${h.daysAgo}d ago`}
+   714→   714→                    </p>
+   715→   715→                  </div>
+   716→   716→                  <div className="col-span-2">
+   717→   717→                    <span
+   718→   718→                      className={cn(
+   719→   719→                        'text-sm font-medium tabular',
+   720→   720→                        pct >= 60 ? 'text-success' : pct >= 35 ? 'text-warning' : 'text-destructive'
+   721→   721→                      )}
+   722→   722→                    >
+   723→   723→                      {h.score}
+   724→   724→                    </span>
+   725→   725→                    <span className="text-[11px] text-muted-foreground">/{h.total}</span>
+   726→   726→                  </div>
+   727→   727→                  <span className="col-span-2 text-sm tabular text-muted-foreground">{h.timeTaken}m</span>
+   728→   728→                  <div className="col-span-2">
+   729→   729→                    {h.trend === 0 ? (
+   730→   730→                      <span className="text-[11px] text-muted-foreground">—</span>
+   731→   731→                    ) : h.trend > 0 ? (
+   732→   732→                      <span className="flex items-center gap-1 text-[11px] text-success">
+   733→   733→                        <TrendingUp className="size-3" /> +{h.trend}
+   734→   734→                      </span>
+   735→   735→                    ) : (
+   736→   736→                      <span className="flex items-center gap-1 text-[11px] text-destructive">
+   737→   737→                        <TrendingDown className="size-3" /> {h.trend}
+   738→   738→                      </span>
+   739→   739→                    )}
+   740→   740→                  </div>
+   741→   741→                  <ChevronRight className="col-span-1 size-4 text-muted-foreground justify-self-end" />
+   742→   742→                </button>
+   743→   743→              )
+   744→   744→            })
+   745→   745→          )}
+   746→   746→        </div>
+   747→   747→      </GlassCard>
+   748→   748→    </div>
+   749→   749→  )
+   750→   750→}
+   751→   751→
+   752→   752→/* ---------------- ANALYSIS ---------------- */
+   753→   753→function AnalysisView({
+   754→   754→  result,
+   755→   755→  row,
+   756→   756→  onBack,
+   757→   757→}: {
+   758→   758→  result: ResultData | null
+   759→   759→  row: HistoryRow | null
+   760→   760→  onBack: () => void
+   761→   761→}) {
+   762→   762→  const subjects = ['Physics', 'Chemistry', 'Maths']
+   763→   763→
+   764→   764→  const breakdown = useMemo(() => {
+   765→   765→    if (result) {
+   766→   766→      return subjects.map((sub) => {
+   767→   767→        const qs = result.questions.map((q, i) => ({ q, i })).filter(({ q }) => q.subject === sub)
+   768→   768→        const correct = qs.filter(({ i, q }) => result.answers[i] === q.correctIndex).length
+   769→   769→        const wrong = qs.filter(
+   770→   770→          ({ i, q }) => result.answers[i] !== undefined && result.answers[i] !== q.correctIndex
+   771→   771→        ).length
+   772→   772→        return { sub, total: qs.length, correct, wrong, unattempted: qs.length - correct - wrong }
+   773→   773→      })
+   774→   774→    }
+   775→   775→    // synthesize
+   776→   776→    const seed = row ? row.score : 150
+   777→   777→    return subjects.map((sub, k) => {
+   778→   778→      const total = 10
+   779→   779→      const correct = Math.max(2, Math.round((seed / 300) * 10) - k)
+   780→   780→      const wrong = Math.min(total - correct, 2 + k)
+   781→   781→      return { sub, total, correct, wrong, unattempted: total - correct - wrong }
+   782→   782→    })
+   783→   783→  }, [result, row])
+   784→   784→
+   785→   785→  return (
+   786→   786→    <div className="h-full overflow-y-auto scroll-thin">
+   787→   787→      <div className="max-w-5xl mx-auto flex flex-col gap-4 py-1">
+   788→   788→        <div className="flex items-center gap-3">
+   789→   789→          <IconButton label="Back" onClick={onBack}>
+   790→   790→            <ArrowLeft className="size-4" />
+   791→   791→          </IconButton>
+   792→   792→          <div className="min-w-0">
+   793→   793→            <h1 className="text-2xl font-light tracking-tight truncate">Performance Analysis</h1>
+   794→   794→            <p className="text-sm text-muted-foreground truncate">
+   795→   795→              {result?.test.name ?? row?.name ?? 'Test review'}
+   796→   796→            </p>
+   797→   797→          </div>
+   798→   798→        </div>
+   799→   799→
+   800→   800→        {/* Subject breakdown */}
+   801→   801→        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+   802→   802→          {breakdown.map((b) => {
+   803→   803→            const acc = b.correct + b.wrong > 0 ? (b.correct / (b.correct + b.wrong)) * 100 : 0
+   804→   804→            return (
+   805→   805→              <GlassCard key={b.sub} className="p-4">
+   806→   806→                <div className="flex items-center justify-between mb-3">
+   807→   807→                  <span className="text-sm font-medium">{b.sub}</span>
+   808→   808→                  <span className="text-xs text-muted-foreground tabular">
+   809→   809→                    {b.correct}/{b.total}
+   810→   810→                  </span>
+   811→   811→                </div>
+   812→   812→                <div className="flex items-center gap-4">
+   813→   813→                  <ProgressRing value={acc / 100} size={64} stroke={6} valueClass="text-primary">
+   814→   814→                    <span className="text-xs tabular">{acc.toFixed(0)}%</span>
+   815→   815→                  </ProgressRing>
+   816→   816→                  <div className="flex-1 space-y-1.5 text-[11px]">
+   817→   817→                    <Bar label="Correct" value={b.correct} total={b.total} color="bg-success" />
+   818→   818→                    <Bar label="Wrong" value={b.wrong} total={b.total} color="bg-destructive" />
+   819→   819→                    <Bar label="Skipped" value={b.unattempted} total={b.total} color="bg-white/25" />
+   820→   820→                  </div>
+   821→   821→                </div>
+   822→   822→              </GlassCard>
+   823→   823→            )
+   824→   824→          })}
+   825→   825→        </div>
+   826→   826→
+   827→   827→        {/* Per-question review (only when we have the live result) */}
+   828→   828→        {result && (
+   829→   829→          <GlassCard className="p-4">
+   830→   830→            <p className="text-sm font-medium mb-3">Question-by-question review</p>
+   831→   831→            <div className="space-y-2.5 max-h-96 overflow-y-auto scroll-thin pr-1">
+   832→   832→              {result.questions.map((q, i) => {
+   833→   833→                const userAns = result.answers[i]
+   834→   834→                const isCorrect = userAns === q.correctIndex
+   835→   835→                const attempted = userAns !== undefined
+   836→   836→                return (
+   837→   837→                  <div
+   838→   838→                    key={q.id}
+   839→   839→                    className="rounded-xl border border-border bg-white/[0.02] p-3.5"
+   840→   840→                  >
+   841→   841→                    <div className="flex items-start gap-3">
+   842→   842→                      <span
+   843→   843→                        className={cn(
+   844→   844→                          'grid place-items-center size-6 rounded-full shrink-0 mt-0.5',
+   845→   845→                          !attempted
+   846→   846→                            ? 'bg-white/10 text-muted-foreground'
+   847→   847→                            : isCorrect
+   848→   848→                              ? 'bg-success/20 text-success'
+   849→   849→                              : 'bg-destructive/20 text-destructive'
+   850→   850→                        )}
+   851→   851→                      >
+   852→   852→                        {!attempted ? (
+   853→   853→                          <CircleDot className="size-3.5" />
+   854→   854→                        ) : isCorrect ? (
+   855→   855→                          <Check className="size-3.5" />
+   856→   856→                        ) : (
+   857→   857→                          <X className="size-3.5" />
+   858→   858→                        )}
+   859→   859→                      </span>
+   860→   860→                      <div className="min-w-0 flex-1">
+   861→   861→                        <p className="text-sm text-pretty">{q.text}</p>
+   862→   862→                        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+   863→   863→                          <span className="rounded-full bg-success/15 text-success px-2 py-0.5">
+   864→   864→                            Correct: {String.fromCharCode(65 + q.correctIndex)}
+   865→   865→                          </span>
+   866→   866→                          {attempted && !isCorrect && (
+   867→   867→                            <span className="rounded-full bg-destructive/15 text-destructive px-2 py-0.5">
+   868→   868→                              You: {String.fromCharCode(65 + userAns)}
+   869→   869→                            </span>
+   870→   870→                          )}
+   871→   871→                          {!attempted && (
+   872→   872→                            <span className="rounded-full bg-white/5 text-muted-foreground px-2 py-0.5">
+   873→   873→                              Skipped
+   874→   874→                            </span>
+   875→   875→                          )}
+   876→   876→                          <span className="rounded-full bg-white/5 text-muted-foreground px-2 py-0.5">
+   877→   877→                            {q.subject}
+   878→   878→                          </span>
+   879→   879→                        </div>
+   880→   880→                        <p className="mt-2 text-xs text-muted-foreground leading-relaxed text-pretty">
+   881→   881→                          <span className="text-foreground font-medium">Solution: </span>
+   882→   882→                          {q.explanation}
+   883→   883→                        </p>
+   884→   884→                      </div>
+   885→   885→                    </div>
+   886→   886→                  </div>
+   887→   887→                )
+   888→   888→              })}
+   889→   889→            </div>
+   890→   890→          </GlassCard>
+   891→   891→        )}
+   892→   892→
+   893→   893→        {!result && (
+   894→   894→          <EmptyState
+   895→   895→            icon={<BarChart3 className="size-6" />}
+   896→   896→            title="Subject-level analysis"
+   897→   897→            hint="Per-question solutions are available right after you attempt a test live."
+   898→   898→          />
+   899→   899→        )}
+   900→   900→      </div>
+   901→   901→    </div>
+   902→   902→  )
+   903→   903→}
+   904→   904→
+   905→   905→function Bar({
+   906→   906→  label,
+   907→   907→  value,
+   908→   908→  total,
+   909→   909→  color,
+   910→   910→}: {
+   911→   911→  label: string
+   912→   912→  value: number
+   913→   913→  total: number
+   914→   914→  color: string
+   915→   915→}) {
+   916→   916→  const pct = total ? (value / total) * 100 : 0
+   917→   917→  return (
+   918→   918→    <div className="flex items-center gap-2">
+   919→   919→      <span className="w-12 text-muted-foreground">{label}</span>
+   920→   920→      <span className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+   921→   921→        <span
+   922→   922→          className={cn('block h-full rounded-full transition-all duration-500', color)}
+   923→   923→          style={{ width: `${pct}%` }}
+   924→   924→        />
+   925→   925→      </span>
+   926→   926→      <span className="w-4 text-right tabular">{value}</span>
+   927→   927→    </div>
+   928→   928→  )
+   929→   929→}
+   930→   930→

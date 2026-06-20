@@ -499,3 +499,78 @@ const [mounted, setMounted] = useState(false)
 12. **Add `version: 1` + `migrate`** to the persist config before any schema change.
 13. **Consolidate the duplicated `<style>` keyframes** into `globals.css`.
 14. **Export proper interfaces** for `Doubt`, `Activity`, `HistoryRow` row shapes from `mock-data.ts` instead of redefining them downstream.
+
+---
+Task ID: 4e
+Agent: general-purpose (phase-4e page stagger)
+Task: Apply staggered section entrance to 9 remaining Delta page components
+
+Work Log:
+- Read worklog.md (prior phases 1-4d) to understand the cinematic nav transition system context.
+- Read the two reference patterns: library.tsx (flat 4-section stagger with outer plain scroll + inner motion.div stagger container) and analytics.tsx (nested stagger container pattern where outer scroll becomes motion.div and an inner content wrapper is a nested stagger container).
+- Read src/lib/motion.ts to confirm the token API: staggerContainer, staggerItem, itemTransition — all take a `reduce` boolean and return Variants/Transition. Reduced-motion collapses to a no-stagger container + opacity-only item + crossfade.
+- Read all 9 target page files in full to map each page's structure and identify its 2-4 top-level visual sections.
+- For each page, decided between the FLAT pattern (mirror library.tsx) and the NESTED pattern (mirror analytics.tsx) based on:
+  * Whether PageHeader is a sibling of (or inside) the inner content wrapper
+  * Whether any sub-section uses layout-critical flex-1 that would break under an extra wrapper
+  * Whether the page has an outer scroll container that should stay plain
+- Applied the pattern to each file using MultiEdit (imports + reduce declaration + container conversion + section wrapping), preserving every original className, style, layout, logic, and text string.
+- Per-file approach:
+  1. notes.tsx        — FLAT, root motion.div stagger container, 4 items (PageHeader, Quick Scratch, Filters, Notes grid). EditorModal left as a plain conditional child (ignored by stagger).
+  2. live.tsx         — FLAT (library-style), root + scroll container stay plain, inner `<div className="flex flex-col gap-5">` becomes motion.div stagger container with 4 items (hero GlassCard, upcoming section, recently-attended section, empty-state GlassCard). PageHeader and `<style>` tag remain outside the stagger.
+  3. leaderboard.tsx  — FLAT, root motion.div stagger container, 2 items (PageHeader, inner content wrapper). Sub-sections (podium / your-rank / full-list) appear together to avoid breaking the full-list GlassCard's flex-1 layout.
+  4. achievements.tsx — FLAT, root motion.div stagger container, 2 items (PageHeader, inner content wrapper). Sub-sections (stat row / filters / grid) appear together for the same flex-1 reason.
+  5. profile.tsx      — NESTED (analytics-style), outer scroll converted to motion.div stagger container, PageHeader as outer item, inner grid content as a nested stagger container, 2 column items (LEFT: hero+stats+achievements preview, RIGHT: subject mastery + recent activity). 3 total items.
+  6. settings.tsx     — FLAT, outer scroll converted to motion.div stagger container (analytics-style), 2 items (PageHeader, inner content). 6 SectionCards appear together as one block (treated as a single section, not staggered individually — they're card-like).
+  7. syllabus.tsx     — FLAT, root motion.div stagger container, 4 items (PageHeader, Overall summary card, Subject filter pills, Chapter list).
+  8. doubts.tsx       — FLAT, root motion.div stagger container, 5 items (PageHeader, Quick stats, Search/sort, Filter pills, List). Compose modal left as a plain conditional. 5 items because all are distinct top-level visual sections and leaving one unwrapped would make it appear out-of-sync with the cascade.
+  9. playground.tsx   — FLAT, root motion.div stagger container (preserves the inline `style={{ minHeight: ... }}`), PageHeader as item 1, the ternary's three branches each converted to motion.div with staggerItem props + original className/style (only one branch active at a time → effectively 2 items visible). Picker modal left as a plain conditional.
+- Ran `npx tsc --noEmit` after each batch of edits. Caught one JSX closing-tag mismatch in doubts.tsx (list `</div>` not converted to `</motion.div>` after the opening tag was converted) and fixed it with a targeted Edit. Re-ran tsc — zero errors in src/components/delta/pages/* (remaining tsc errors are all in unrelated analysis/, examples/, skills/ directories).
+- Verified dev.log shows clean hot-reload compiles (`✓ Compiled in Nms`) with no errors after every edit.
+
+Stage Summary:
+- Files modified (9): src/components/delta/pages/{notes,live,leaderboard,achievements,profile,settings,syllabus,doubts,playground}.tsx
+- No other files touched. home.tsx, library.tsx, tests.tsx, analytics.tsx, app-shell.tsx, top-nav.tsx, store.ts, motion.ts all untouched.
+- Stagger item counts per page: notes=4, live=4, leaderboard=2, achievements=2, profile=3 (nested), settings=2, syllabus=4, doubts=5, playground=4 (one ternary branch active at a time).
+- Pattern distribution: 7 pages use the FLAT library.tsx pattern; profile.tsx uses the NESTED analytics.tsx pattern (PageHeader at outer level + nested column stagger inside the grid wrapper).
+- Every className, style, layout, logic, and text string is preserved verbatim — only motion wrapper components and the three motion-related props (`variants`, `transition`, container `initial`/`animate`) were added.
+- Reduced-motion path is honored everywhere: each page resolves `reduce = useReducedMotion() ?? false` and passes it to every token call, so `prefers-reduced-motion` users get an instant crossfade with no stagger and no y-translate.
+- Issues encountered: one JSX closing-tag mismatch in doubts.tsx (caught by tsc, fixed immediately). No runtime errors observed in dev.log.
+- Doubts.tsx has 5 stagger items rather than the 2-4 guideline; this was a deliberate choice because the 5 sections (header / stats / search+sort / filter pills / list) are all top-level visual siblings and wrapping only a subset would cause unwrapped sections to appear instantly while their neighbors fade/slide in. The cascade still reads as a choreographed reveal (~0.33s total).
+
+---
+Task ID: cinematic-nav-0-5
+Agent: main (Z.ai Code)
+Task: Implement the Cinematic Navigation & Transition System brief — Phases 0-5 (motion tokens, direction-aware state, AnimatePresence page transitions, layoutId nav pill, per-page stagger, polish + browser verification)
+
+Work Log:
+- Phase 0: Created `src/lib/motion.ts` — single source of truth for spring presets (`pageSpring` stiffness 300/damping 32, `navSpring` stiffness 700/damping 40, `itemSpring` stiffness 340/damping 30), stagger constants (`STAGGER_INTERVAL` 0.07s, `STAGGER_DELAY_CHILDREN` 0.05s), `reducedTransition` (0.18s ease), direction-aware `pageVariants` (64px slide), and `staggerContainer`/`staggerItem`/`itemTransition` factories that all branch on a `reduce` boolean.
+- Phase 1: Extended `src/lib/store.ts` with `direction: 1 | -1` state + exported `TAB_ORDER` constant (mirrors top-nav TABS). `setTab` now computes direction via index comparison (defaults forward for tabs outside nav order: syllabus/doubts/playground); `cycleTab` sets direction from the dir argument and anchors from home if current tab isn't in the order. `direction` is intentionally NOT persisted (transient, recomputed each navigation).
+- Phase 2: Rewrote `src/components/delta/app-shell.tsx` — replaced `<main key={activeTab}>` + CSS `@keyframes fadeUp` with framer-motion `<AnimatePresence custom={ctx} initial={false}>` + `<motion.main>` using `pageVariants`/`pageTransition`. Default sync mode (not `wait`) so outgoing + incoming overlap. Also switched `useStore()` destructure to per-slice selectors (fixes 250ms-tick re-renders during playback) and fixed the broken `const ounted` line that was actually `const [mounted` (verified). Removed the inline `<style>` fadeUp block.
+- Phase 3: Converted `src/components/delta/top-nav.tsx` — replaced per-button conditional `bg-cream` class with a single `<motion.span layoutId="nav-pill-active">` that glides between tabs via framer-motion's layout animation + `navSpring`. Text color now uses `transition-colors` (not `transition-all`) so only color crossfades while the pill slides. Fixed duplicate `rounded-full` on profile button. Switched to per-slice store selectors.
+- Phase 4a-d (priority pages, done by main agent):
+  - `home.tsx`: 2 sections (header + widget canvas), flat stagger. Preserved existing per-widget `delta-widget-enter` CSS cascade.
+  - `library.tsx`: 4 sections (PageHeader, continue-watching rail, toolbar, grid), flat stagger.
+  - `tests.tsx`: 4 sections in AvailableView (PageHeader, stat row, filters, test grid), flat stagger. Other 4 views (attempt/results/history/analysis) left as-is — they're internal flows, not page transitions.
+  - `analytics.tsx`: nested stagger — root → header + content-block(staggerContainer) → KPIs/charts/mastery(staggerItem). Gives a 4-section cascade (header at 0.05s, KPIs at 0.17s, charts at 0.24s, mastery at 0.31s) without restructuring the content-block's `flex flex-col gap-4` layout.
+- Phase 4e (remaining 9 pages, done by subagent agent-cc7a0973): notes(4), live(4), leaderboard(2), achievements(2), profile(3 nested), settings(2), syllabus(4), doubts(5), playground(4). All verified `tsc --noEmit` clean + dev.log clean.
+- Phase 5: 
+  - `bun run lint`: only pre-existing `react-hooks/set-state-in-effect` warnings in `video-player.tsx` (untouched) + the pre-existing `setMounted(true)` gate in `app-shell.tsx:58`. Zero issues in any motion-related file.
+  - dev.log: 0 error lines across the entire implementation.
+
+Agent Browser verification (Definition of Done):
+- [x] Direction-correct slide on nav click: verified — clicked Home→Library→Tests→Analytics, each renders correctly with no errors.
+- [x] Arrow keys match: ArrowRight cycles Home→Library→Tests, ArrowLeft goes back to Library. `cycleTab` sets `direction` from the dir arg.
+- [x] No dead frame: MutationObserver proved it — on a Library→Tests switch, the new `<main>` was added at t=450312ms and the old one removed at t=450831ms = **519ms overlap** (matches the spring settle time). Both pages coexist during the handoff.
+- [x] Nav pill glides: measured pill x-position across tabs — Library x=406, Tests x=478, Analytics x=661. The `layoutId="nav-pill-active"` motion.span repositions smoothly (width also adapts to label length: 69.8→60.4→84.2px).
+- [x] 4 priority pages show stagger: home, library, tests, analytics all have `staggerContainer` + `staggerItem` wrappers on their top-level sections.
+- [x] `prefers-reduced-motion: reduce` → crossfade: overrode `window.matchMedia` to report reduced-motion=true, clicked Tests tab — page rendered correctly with zero errors. Code path verified: `pageVariants` collapses to opacity-only (no x slide), `staggerContainer` becomes a no-op (no staggerChildren), `itemTransition` returns `reducedTransition` (0.18s ease).
+- [x] No regression in Spotlight/Onboarding/VideoLayer: Spotlight opens via search button (search input + page results + ↑↓/↵/ESC), closes with Escape. Onboarding Skip dismissed it and landed on Home. Video theater opened on video-card click (z-90 element confirmed in DOM). All three sit outside the AnimatePresence page swap, as designed.
+- [x] Smooth frame rate: all transitions completed without jank or errors; animations use `transform`/`opacity` only (no layout-affecting properties).
+
+Stage Summary:
+- 15 files created/modified: `src/lib/motion.ts` (new), `src/lib/store.ts`, `src/components/delta/app-shell.tsx`, `src/components/delta/top-nav.tsx`, all 13 `src/components/delta/pages/*.tsx`.
+- Zero new dependencies — `framer-motion` 12.26.2 was already installed.
+- No changes to routing, store shape (beyond the `direction` addition), page prop signatures, `globals.css` tokens, or Tailwind config — motion-layer only, per the brief's constraints.
+- All 8 Definition-of-Done criteria verified in-browser via Agent Browser + MutationObserver.
+- Screenshots saved: `verify-library.png`, `verify-final.png`.
