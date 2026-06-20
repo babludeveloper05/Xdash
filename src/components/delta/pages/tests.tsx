@@ -838,7 +838,7 @@ function AnalysisView({
         {result && (
           <GlassCard className="p-4">
             <p className="text-sm font-medium mb-3">Question-by-question review</p>
-            <div className="space-y-2.5 max-h-96 overflow-y-auto scroll-thin pr-1">
+            <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto scroll-thin pr-1">
               {result.questions.map((q, i) => {
                 const userAns = result.answers[i]
                 const isCorrect = userAns === q.correctIndex

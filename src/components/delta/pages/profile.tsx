@@ -315,7 +315,7 @@ function RecentActivity() {
           Live
         </span>
       </div>
-      <div className="relative flex-1 max-h-80 overflow-y-auto scroll-thin pr-1">
+      <div className="relative flex-1 min-h-0 overflow-y-auto scroll-thin pr-1">
         <div
           aria-hidden
           className="absolute left-4 top-2 bottom-2 w-px bg-border"

@@ -208,8 +208,7 @@ export function PlaygroundPage() {
 
   return (
     <motion.div
-      className="relative w-full flex flex-col"
-      style={{ minHeight: 'calc(100vh - 64px)' }}
+      className="relative w-full h-[calc(100vh-64px)] flex flex-col"
       variants={staggerContainer(reduce)}
       initial="initial"
       animate="animate"
@@ -421,7 +420,7 @@ export function PlaygroundPage() {
                 autoFocus
               />
             </div>
-            <div className="grid grid-cols-2 gap-2 max-h-[50vh] overflow-y-auto scroll-thin pr-1">
+            <div className="grid grid-cols-2 gap-2 flex-1 min-h-0 overflow-y-auto scroll-thin pr-1">
               {filteredTypes.length === 0 ? (
                 <p className="col-span-2 text-center text-xs text-muted-foreground py-8">
                   No widgets match your search.

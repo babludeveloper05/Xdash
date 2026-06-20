@@ -680,3 +680,27 @@ Stage Summary:
 - Conditional actions preserved: settings.tsx still renders the Saved badge only when `savedFlash` is true; live.tsx still shows the live-status pill vs the "No live session" Badge.
 - One small cleanup beyond imports: removed the orphan `const subtitle = ...` line in achievements.tsx (only consumer was the PageHeader subtitle prop; would have triggered unused-var lint).
 - No issues encountered. Pre-existing doubts.tsx GhostButton-disabled type error is unrelated and was not introduced here (verified via git stash).
+
+---
+Task ID: viewport-fit
+Agent: main (Z.ai Code)
+Task: Make every page's components scale to the viewport — no content overflowing out of the viewport — without compromising the current design layout.
+
+Work Log:
+- Created `src/hooks/use-canvas-fit.ts`: a ResizeObserver-based hook that measures the container and computes a uniform scale = min(1, (width-pad)/canvasWidth, (height-pad)/canvasHeight), clamped to a 0.3 floor so widgets stay readable on very narrow screens.
+- Home (`home.tsx`): replaced the `overflow-x-auto` horizontal-scroll approach with the scaling hook. The 1448px canvas now gets `transform: scale(...)` with `transform-origin: top center` so it shrinks proportionally to fit BOTH width and height. Root changed from `min-h-[calc(100vh-64px)]` to `h-[calc(100vh-64px)]` (exact fit, no exceed). Container uses `overflow-hidden` so no content escapes the viewport.
+- List containers (6 files): replaced fixed `max-h-[60vh]` / `max-h-80` / `max-h-96` / `max-h-[50vh]` with `flex-1 min-h-0 overflow-y-auto` so lists fill all available vertical space and scroll internally instead of capping at an arbitrary height (which left dead space on tall screens). Files: syllabus.tsx, doubts.tsx, leaderboard.tsx, profile.tsx, tests.tsx, playground.tsx.
+- Analytics (`analytics.tsx`): replaced fixed chart heights `h-64`/`h-56` with `h-[clamp(200px,32vh,320px)]` and `h-[clamp(180px,26vh,260px)]` so charts scale with viewport height (bigger on tall screens, smaller on short screens, never unreadable).
+- Playground (`playground.tsx`): root changed from `min-h-[calc(100vh-64px)]` to `h-[calc(100vh-64px)]` (exact fit).
+
+Agent Browser verification (3 viewport sizes, all pages):
+- 1440×900 desktop: 8 pages checked — ALL `vOverflow: false, hOverflow: false`, `scrollH === clientH` (836===836), `scrollW === clientW` (1440===1440).
+- 1024×768 narrow: 6 pages checked — ALL `vOverflow: false, hOverflow: false`. Home canvas scale confirmed: `scale(0.685083)` = (1024-32)/1448.
+- 390×844 mobile: 6 pages checked — ALL `vOverflow: false, hOverflow: false`. Home canvas scale: `scale(0.3)` (the readability floor — (390-32)/1448 = 0.247, clamped to 0.3).
+- 0 errors in dev.log throughout.
+
+Stage Summary:
+- 8 files modified: new `use-canvas-fit.ts` hook, home.tsx, analytics.tsx, syllabus.tsx, doubts.tsx, leaderboard.tsx, profile.tsx, tests.tsx, playground.tsx.
+- Every page now fits within `calc(100vh - 64px)` with zero overflow at any viewport size from 390px to 1440px+.
+- The Home dashboard's free-form canvas scales uniformly (preserving widget positions/proportions) rather than scrolling or collapsing — the design layout is fully preserved.
+- Lists fill available space and scroll internally; charts scale with viewport height; no dead space, no overflow.

@@ -6,16 +6,20 @@ import { WIDGET_REGISTRY } from './widget-content'
 import { GlassCard, PrimaryButton, EmptyState } from '../ui'
 import { Sparkles, LayoutGrid, Pencil } from 'lucide-react'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
+import { useCanvasFit } from '@/hooks/use-canvas-fit'
+
+const CANVAS_WIDTH = 1448
 
 export function HomePage() {
   const widgets = useStore((s) => s.widgets)
   const setTab = useStore((s) => s.setTab)
   const reduce = useReducedMotion() ?? false
   const canvasHeight = widgets.reduce((m, w) => Math.max(m, w.y + w.h), 0) + 56
+  const { ref, scale } = useCanvasFit(CANVAS_WIDTH, canvasHeight, 32)
 
   return (
     <motion.div
-      className="relative w-full min-h-[calc(100vh-64px)] flex flex-col"
+      className="relative w-full h-[calc(100vh-64px)] flex flex-col"
       variants={staggerContainer(reduce)}
       initial="initial"
       animate="animate"
@@ -33,16 +37,24 @@ export function HomePage() {
           <EmptyDashboard onOpen={() => setTab('playground')} />
         ) : (
           /*
-           * Free-form absolute canvas — the only layout.
-           * Widgets are positioned at fixed x/y coordinates on a 1448px-wide
-           * canvas. On viewports narrower than the canvas the container scrolls
-           * horizontally (overflow-x-auto) so the arrangement is preserved at
-           * every screen size rather than collapsing to a grid.
+           * Free-form absolute canvas — scaled to fit the viewport.
+           *
+           * The 1448px-wide canvas is transformed uniformly (scale) so it fits
+           * both the available width AND height without overflowing. The
+           * wrapper's height is set to the scaled canvas height so layout
+           * reflects the true visual size (no dead space below). transform-origin
+           * is top-center so the canvas stays centered as it scales down.
            */
-          <div className="w-full overflow-x-auto scroll-thin">
+          <div ref={ref} className="w-full h-full flex justify-center overflow-hidden">
             <div
-              className="relative mx-auto px-6 py-5"
-              style={{ width: 1448, minHeight: canvasHeight }}
+              className="relative"
+              style={{
+                width: CANVAS_WIDTH,
+                height: canvasHeight,
+                transform: `scale(${scale})`,
+                transformOrigin: 'top center',
+                flexShrink: 0,
+              }}
             >
               {widgets.map((w, i) => (
                 <GlassCard

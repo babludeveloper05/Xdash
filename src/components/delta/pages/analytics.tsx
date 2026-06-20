@@ -94,7 +94,7 @@ export function AnalyticsPage() {
       */}
       <motion.div
         variants={staggerContainer(reduce)}
-        className="px-5 pb-6 pt-5 flex flex-col gap-4"
+        className="px-5 pb-5 pt-5 flex flex-col gap-4"
       >
         {/* KPI row */}
         <motion.div
@@ -148,7 +148,7 @@ export function AnalyticsPage() {
                 </span>
               }
             />
-            <div className="h-64" role="img" aria-label="Daily study hours over the last 30 days">
+            <div className="h-[clamp(200px,32vh,320px)]" role="img" aria-label="Daily study hours over the last 30 days">
               <ResponsiveContainer width="100%" height="100%">
                 <AreaChart data={studyHours} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <defs>
@@ -201,7 +201,7 @@ export function AnalyticsPage() {
               title="Test Score Trend"
               subtitle="Last 12 attempts"
             />
-            <div className="h-56" role="img" aria-label="Test score trend over last 12 attempts">
+            <div className="h-[clamp(180px,26vh,260px)]" role="img" aria-label="Test score trend over last 12 attempts">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={scoreData} margin={{ top: 4, right: 8, left: -20, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="oklch(1 0 0 / 0.06)" vertical={false} />
@@ -248,7 +248,7 @@ export function AnalyticsPage() {
               title="Subject Completion"
               subtitle="Chapters finished"
             />
-            <div className="h-56" role="img" aria-label="Subject completion percentage">
+            <div className="h-[clamp(180px,26vh,260px)]" role="img" aria-label="Subject completion percentage">
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={subjectBars} layout="vertical" margin={{ top: 0, right: 16, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="oklch(1 0 0 / 0.06)" horizontal={false} />

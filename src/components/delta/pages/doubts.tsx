@@ -280,7 +280,7 @@ export function DoubtsPage() {
       </motion.div>
 
       {/* List */}
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="max-h-[60vh] overflow-y-auto scroll-thin px-5 pb-5">
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex-1 min-h-0 overflow-y-auto scroll-thin px-5 pb-5">
         {list.length === 0 ? (
           <GlassCard className="p-6 min-h-[220px] flex items-center justify-center">
             <EmptyState

@@ -188,7 +188,7 @@ export function LeaderboardPage() {
             <span className="text-right">Score</span>
             <span className="text-right">Δ</span>
           </div>
-          <div className="flex-1 overflow-y-auto scroll-thin max-h-[60vh]">
+          <div className="flex-1 min-h-0 overflow-y-auto scroll-thin">
             {list.length === 0 ? (
               <div className="min-h-[280px] grid place-items-center">
                 <EmptyState
