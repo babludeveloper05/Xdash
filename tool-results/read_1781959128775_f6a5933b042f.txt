@@ -1,0 +1,721 @@
+     1→     1→'use client'
+     2→     2→
+     3→     3→import { useStore } from '@/lib/store'
+     4→     4→import { videos, chapters, SUBJECTS, fmtDuration, type SubjectId } from '@/lib/mock-data'
+     5→     5→import { useEffect, useMemo, useRef, useState } from 'react'
+     6→     6→import { cn } from '@/lib/utils'
+     7→     7→import {
+     8→     8→  Play, Pause, X, Maximize2, Minimize2, PictureInPicture2, SkipBack, SkipForward,
+     9→     9→  Volume2, VolumeX, Gauge, Heart, Bookmark, Download, ListVideo, Check,
+    10→    10→} from 'lucide-react'
+    11→    11→import type { LucideIcon } from 'lucide-react'
+    12→    12→
+    13→    13→/* ------------------------------------------------------------------ */
+    14→    14→/*  Subject poster gradients (cinematic warm dark per subject)         */
+    15→    15→/* ------------------------------------------------------------------ */
+    16→    16→
+    17→    17→const SUBJECT_POSTER: Record<SubjectId, string> = {
+    18→    18→  physics: 'from-[oklch(0.34_0.075_62)] via-[oklch(0.22_0.05_62)] to-[oklch(0.10_0.015_62)]',
+    19→    19→  chemistry: 'from-[oklch(0.34_0.075_150)] via-[oklch(0.22_0.05_150)] to-[oklch(0.10_0.015_150)]',
+    20→    20→  maths: 'from-[oklch(0.34_0.06_250)] via-[oklch(0.22_0.04_250)] to-[oklch(0.10_0.015_250)]',
+    21→    21→  biology: 'from-[oklch(0.34_0.075_30)] via-[oklch(0.22_0.05_30)] to-[oklch(0.10_0.015_30)]',
+    22→    22→  cs: 'from-[oklch(0.34_0.06_200)] via-[oklch(0.22_0.04_200)] to-[oklch(0.10_0.015_200)]',
+    23→    23→  english: 'from-[oklch(0.34_0.055_90)] via-[oklch(0.22_0.04_90)] to-[oklch(0.10_0.015_90)]',
+    24→    24→}
+    25→    25→
+    26→    26→const SPEED_OPTIONS = [1, 1.25, 1.5, 1.75, 2]
+    27→    27→
+    28→    28→export function getVideo(id: string) {
+    29→    29→  return videos.find((v) => v.id === id)
+    30→    30→}
+    31→    31→
+    32→    32→function isTextTarget(el: EventTarget | null): boolean {
+    33→    33→  if (!(el instanceof HTMLElement)) return false
+    34→    34→  return (
+    35→    35→    el.tagName === 'INPUT' ||
+    36→    36→    el.tagName === 'TEXTAREA' ||
+    37→    37→    el.tagName === 'SELECT' ||
+    38→    38→    el.isContentEditable
+    39→    39→  )
+    40→    40→}
+    41→    41→
+    42→    42→function chapterTitleOf(videoId: string | null): string {
+    43→    43→  if (!videoId) return ''
+    44→    44→  const v = getVideo(videoId)
+    45→    45→  if (!v) return ''
+    46→    46→  return chapters.find((c) => c.id === v.chapterId)?.title ?? ''
+    47→    47→}
+    48→    48→
+    49→    49→/* ------------------------------------------------------------------ */
+    50→    50→/*  Playback engine (UNCHANGED — still advances store progress)        */
+    51→    51→/* ------------------------------------------------------------------ */
+    52→    52→
+    53→    53→function usePlayback(videoId: string | null) {
+    54→    54→  const { videoProgress, setVideoProgress } = useStore()
+    55→    55→  const [playing, setPlaying] = useState(true)
+    56→    56→  const [speed, setSpeed] = useState(1)
+    57→    57→  const video = videoId ? getVideo(videoId) : null
+    58→    58→  const fraction = videoId ? videoProgress[videoId]?.fraction ?? 0 : 0
+    59→    59→  const accRef = useRef(0)
+    60→    60→
+    61→    61→  useEffect(() => {
+    62→    62→    setPlaying(true)
+    63→    63→  }, [videoId])
+    64→    64→
+    65→    65→  useEffect(() => {
+    66→    66→    if (!playing || !video || !videoId) return
+    67→    67→    const iv = setInterval(() => {
+    68→    68→      const cur = useStore.getState().videoProgress[videoId]?.fraction ?? 0
+    69→    69→      const next = Math.min(1, cur + (speed * 1) / video.durationSec)
+    70→    70→      setVideoProgress(videoId, next)
+    71→    71→      // bump study hours occasionally
+    72→    72→      accRef.current += speed
+    73→    73→      if (accRef.current > 60) {
+    74→    74→        accRef.current = 0
+    75→    75→      }
+    76→    76→      if (next >= 1) setPlaying(false)
+    77→    77→    }, 250)
+    78→    78→    return () => clearInterval(iv)
+    79→    79→  }, [playing, video, videoId, speed, setVideoProgress])
+    80→    80→
+    81→    81→  return { playing, setPlaying, speed, setSpeed, fraction, video }
+    82→    82→}
+    83→    83→
+    84→    84→/* ------------------------------------------------------------------ */
+    85→    85→/*  Seekbar with chapter markers + larger hover thumb                  */
+    86→    86→/* ------------------------------------------------------------------ */
+    87→    87→
+    88→    88→function Seekbar({
+    89→    89→  fraction,
+    90→    90→  duration,
+    91→    91→  onSeek,
+    92→    92→}: {
+    93→    93→  fraction: number
+    94→    94→  duration: number
+    95→    95→  onSeek: (f: number) => void
+    96→    96→}) {
+    97→    97→  const barRef = useRef<HTMLDivElement>(null)
+    98→    98→  const [hoverFrac, setHoverFrac] = useState<number | null>(null)
+    99→    99→
+   100→   100→  function fracFromClientX(clientX: number) {
+   101→   101→    const rect = barRef.current?.getBoundingClientRect()
+   102→   102→    if (!rect) return 0
+   103→   103→    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
+   104→   104→  }
+   105→   105→
+   106→   106→  return (
+   107→   107→    <div
+   108→   108→      ref={barRef}
+   109→   109→      role="slider"
+   110→   110→      aria-label="Seek"
+   111→   111→      aria-valuemin={0}
+   112→   112→      aria-valuemax={Math.round(duration)}
+   113→   113→      aria-valuenow={Math.round(fraction * duration)}
+   114→   114→      tabIndex={0}
+   115→   115→      className="group/seek relative h-5 flex items-center cursor-pointer select-none focus-visible:outline-none"
+   116→   116→      onClick={(e) => onSeek(fracFromClientX(e.clientX))}
+   117→   117→      onMouseMove={(e) => setHoverFrac(fracFromClientX(e.clientX))}
+   118→   118→      onMouseLeave={() => setHoverFrac(null)}
+   119→   119→    >
+   120→   120→      {/* Track */}
+   121→   121→      <div className="relative h-1.5 w-full rounded-full bg-white/12 overflow-visible">
+   122→   122→        {/* Buffered hint zones (visual only — chapters at 25/50/75) */}
+   123→   123→        {[0.25, 0.5, 0.75].map((m) => (
+   124→   124→          <span
+   125→   125→            key={m}
+   126→   126→            className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 size-1.5 rounded-full bg-white/30 ring-2 ring-black/40"
+   127→   127→            style={{ left: `${m * 100}%` }}
+   128→   128→          />
+   129→   129→        ))}
+   130→   130→        {/* Hover preview fill */}
+   131→   131→        {hoverFrac !== null && hoverFrac > fraction && (
+   132→   132→          <div
+   133→   133→            className="absolute inset-y-0 left-0 rounded-full bg-white/15"
+   134→   134→            style={{ width: `${hoverFrac * 100}%` }}
+   135→   135→          />
+   136→   136→        )}
+   137→   137→        {/* Progress fill */}
+   138→   138→        <div
+   139→   139→          className="absolute inset-y-0 left-0 rounded-full bg-primary transition-[width] duration-200 ease-out"
+   140→   140→          style={{ width: `${fraction * 100}%` }}
+   141→   141→        />
+   142→   142→      </div>
+   143→   143→      {/* Active thumb */}
+   144→   144→      <span
+   145→   145→        className="absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-cream elev-1 opacity-0 transition-opacity duration-200 group-hover/seek:opacity-100"
+   146→   146→        style={{ left: `${fraction * 100}%` }}
+   147→   147→      />
+   148→   148→      {/* Hover scrub marker + tooltip */}
+   149→   149→      {hoverFrac !== null && (
+   150→   150→        <>
+   151→   151→          <span
+   152→   152→            className="absolute top-1/2 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white/70 pointer-events-none"
+   153→   153→            style={{ left: `${hoverFrac * 100}%` }}
+   154→   154→          />
+   155→   155→          <span
+   156→   156→            className="absolute -top-7 -translate-x-1/2 px-1.5 py-0.5 rounded-md bg-black/80 text-[10px] tabular text-white pointer-events-none"
+   157→   157→            style={{ left: `${hoverFrac * 100}%` }}
+   158→   158→          >
+   159→   159→            {fmtDuration(Math.round(hoverFrac * duration))}
+   160→   160→          </span>
+   161→   161→        </>
+   162→   162→      )}
+   163→   163→    </div>
+   164→   164→  )
+   165→   165→}
+   166→   166→
+   167→   167→/* ------------------------------------------------------------------ */
+   168→   168→/*  Small control primitives                                           */
+   169→   169→/* ------------------------------------------------------------------ */
+   170→   170→
+   171→   171→function CtrlButton({
+   172→   172→  onClick,
+   173→   173→  label,
+   174→   174→  children,
+   175→   175→  active,
+   176→   176→  className,
+   177→   177→}: {
+   178→   178→  onClick?: () => void
+   179→   179→  label: string
+   180→   180→  children: React.ReactNode
+   181→   181→  active?: boolean
+   182→   182→  className?: string
+   183→   183→}) {
+   184→   184→  return (
+   185→   185→    <button
+   186→   186→      type="button"
+   187→   187→      onClick={onClick}
+   188→   188→      aria-label={label}
+   189→   189→      title={label}
+   190→   190→      className={cn(
+   191→   191→        'grid place-items-center size-9 rounded-full transition-all duration-200',
+   192→   192→        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+   193→   193→        active
+   194→   194→          ? 'bg-primary/15 text-primary'
+   195→   195→          : 'text-muted-foreground hover:text-foreground hover:bg-white/8',
+   196→   196→        className
+   197→   197→      )}
+   198→   198→    >
+   199→   199→      {children}
+   200→   200→    </button>
+   201→   201→  )
+   202→   202→}
+   203→   203→
+   204→   204→function ActionToggle({
+   205→   205→  label,
+   206→   206→  icon: Icon,
+   207→   207→}: {
+   208→   208→  label: string
+   209→   209→  icon: LucideIcon
+   210→   210→}) {
+   211→   211→  const [active, setActive] = useState(false)
+   212→   212→  return (
+   213→   213→    <button
+   214→   214→      type="button"
+   215→   215→      onClick={() => setActive((a) => !a)}
+   216→   216→      aria-label={label}
+   217→   217→      aria-pressed={active}
+   218→   218→      title={label}
+   219→   219→      className={cn(
+   220→   220→        'grid place-items-center size-9 rounded-full border transition-all duration-200',
+   221→   221→        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+   222→   222→        active
+   223→   223→          ? 'border-primary/30 bg-primary/12 text-primary'
+   224→   224→          : 'border-border bg-white/5 text-muted-foreground hover:text-foreground hover:bg-white/10'
+   225→   225→      )}
+   226→   226→    >
+   227→   227→      <Icon className={cn('size-4', active && 'fill-current')} />
+   228→   228→    </button>
+   229→   229→  )
+   230→   230→}
+   231→   231→
+   232→   232→/* ------------------------------------------------------------------ */
+   233→   233→/*  VideoLayer — theater + PiP                                         */
+   234→   234→/* ------------------------------------------------------------------ */
+   235→   235→
+   236→   236→export function VideoLayer() {
+   237→   237→  const {
+   238→   238→    theaterVideoId, pipVideoId, closeTheater, enterPip, closePip,
+   239→   239→    restoreFromPip, openTheater, videoProgress,
+   240→   240→  } = useStore()
+   241→   241→  const [maximized, setMaximized] = useState(false)
+   242→   242→  const [muted, setMuted] = useState(false)
+   243→   243→  const theater = usePlayback(theaterVideoId)
+   244→   244→  const pip = usePlayback(pipVideoId)
+   245→   245→  const containerRef = useRef<HTMLDivElement>(null)
+   246→   246→  const modalRef = useRef<HTMLDivElement>(null)
+   247→   247→
+   248→   248→  // Focus management: move focus into the dialog when it opens so
+   249→   249→  // keyboard users can immediately use Space/Arrows/Escape.
+   250→   250→  useEffect(() => {
+   251→   251→    if (theaterVideoId && modalRef.current) {
+   252→   252→      // Defer to next tick so the element is painted.
+   253→   253→      const id = window.setTimeout(() => modalRef.current?.focus(), 30)
+   254→   254→      return () => window.clearTimeout(id)
+   255→   255→    }
+   256→   256→  }, [theaterVideoId])
+   257→   257→
+   258→   258→  // Sync local `maximized` state with browser fullscreen changes (so pressing
+   259→   259→  // Escape in native fullscreen keeps our UI in sync).
+   260→   260→  useEffect(() => {
+   261→   261→    function onFsChange() {
+   262→   262→      setMaximized(Boolean(document.fullscreenElement))
+   263→   263→    }
+   264→   264→    document.addEventListener('fullscreenchange', onFsChange)
+   265→   265→    return () => document.removeEventListener('fullscreenchange', onFsChange)
+   266→   266→  }, [])
+   267→   267→
+   268→   268→  // Keyboard shortcuts
+   269→   269→  function toggleFullscreen() {
+   270→   270→    if (!document.fullscreenElement) {
+   271→   271→      containerRef.current?.requestFullscreen?.().catch(() => {})
+   272→   272→    } else {
+   273→   273→      document.exitFullscreen?.().catch(() => {})
+   274→   274→    }
+   275→   275→  }
+   276→   276→
+   277→   277→  function cycleSpeed() {
+   278→   278→    const idx = SPEED_OPTIONS.indexOf(theater.speed)
+   279→   279→    const next = SPEED_OPTIONS[(idx + 1) % SPEED_OPTIONS.length]
+   280→   280→    theater.setSpeed(next)
+   281→   281→  }
+   282→   282→
+   283→   283→  useEffect(() => {
+   284→   284→    const onKey = (e: KeyboardEvent) => {
+   285→   285→      if (!theaterVideoId) return
+   286→   286→
+   287→   287→      // Don't hijack typing in inputs/textareas.
+   288→   288→      if (isTextTarget(e.target)) return
+   289→   289→
+   290→   290→      if (e.key === 'Escape') {
+   291→   291→        e.preventDefault()
+   292→   292→        closeTheater()
+   293→   293→        return
+   294→   294→      }
+   295→   295→
+   296→   296→      if (e.code === 'Space') {
+   297→   297→        e.preventDefault()
+   298→   298→        theater.setPlaying((p) => !p)
+   299→   299→        return
+   300→   300→      }
+   301→   301→
+   302→   302→      if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+   303→   303→        e.preventDefault()
+   304→   304→        const v = getVideo(theaterVideoId)
+   305→   305→        if (!v) return
+   306→   306→        const cur = useStore.getState().videoProgress[theaterVideoId]?.fraction ?? 0
+   307→   307→        const delta = e.key === 'ArrowRight' ? 10 : -10
+   308→   308→        const next = Math.max(0, Math.min(1, cur + delta / v.durationSec))
+   309→   309→        useStore.getState().setVideoProgress(theaterVideoId, next)
+   310→   310→        return
+   311→   311→      }
+   312→   312→
+   313→   313→      if (e.key === 'f' || e.key === 'F') {
+   314→   314→        e.preventDefault()
+   315→   315→        toggleFullscreen()
+   316→   316→      }
+   317→   317→    }
+   318→   318→    window.addEventListener('keydown', onKey)
+   319→   319→    return () => window.removeEventListener('keydown', onKey)
+   320→   320→  }, [theaterVideoId, closeTheater, theater])
+   321→   321→
+   322→   322→  // Up-next queue: current video + next 5 from the same chapter.
+   323→   323→  const queue = useMemo(() => {
+   324→   324→    if (!theaterVideoId || !theater.video) return [] as typeof videos
+   325→   325→    const chapterVids = videos.filter((v) => v.chapterId === theater.video!.chapterId)
+   326→   326→    const idx = chapterVids.findIndex((v) => v.id === theaterVideoId)
+   327→   327→    if (idx === -1) return chapterVids.slice(0, 6)
+   328→   328→    const after = chapterVids.slice(idx)
+   329→   329→    if (after.length >= 6) return after.slice(0, 6)
+   330→   330→    const before = chapterVids.slice(0, 6 - after.length)
+   331→   331→    return [...after, ...before]
+   332→   332→  }, [theaterVideoId, theater.video])
+   333→   333→
+   334→   334→  return (
+   335→   335→    <>
+   336→   336→      <style>{`
+   337→   337→        @keyframes deltaBackdropIn { from { opacity: 0 } to { opacity: 1 } }
+   338→   338→        @keyframes deltaTheaterIn {
+   339→   339→          from { opacity: 0; transform: scale(0.965) translateY(8px) }
+   340→   340→          to { opacity: 1; transform: none }
+   341→   341→        }
+   342→   342→        @keyframes deltaPipIn {
+   343→   343→          from { opacity: 0; transform: translateY(20px) scale(0.96) }
+   344→   344→          to { opacity: 1; transform: none }
+   345→   345→        }
+   346→   346→        @keyframes deltaPlayPulse {
+   347→   347→          0% { box-shadow: 0 0 0 0 oklch(0.62 0.2 22 / 0.45) }
+   348→   348→          70% { box-shadow: 0 0 0 16px oklch(0.62 0.2 22 / 0) }
+   349→   349→          100% { box-shadow: 0 0 0 0 oklch(0.62 0.2 22 / 0) }
+   350→   350→        }
+   351→   351→        @keyframes deltaEqualize {
+   352→   352→          0%, 100% { transform: scaleY(0.4) }
+   353→   353→          50% { transform: scaleY(1) }
+   354→   354→        }
+   355→   355→      `}</style>
+   356→   356→
+   357→   357→      {/* THEATER */}
+   358→   358→      {theaterVideoId && theater.video && (
+   359→   359→        <div
+   360→   360→          className="fixed inset-0 z-[90] grid place-items-center bg-black/80 backdrop-blur-md p-4 sm:p-6"
+   361→   361→          onClick={() => closeTheater()}
+   362→   362→          style={{ animation: 'deltaBackdropIn 0.25s ease-out' }}
+   363→   363→        >
+   364→   364→          <div
+   365→   365→            ref={containerRef}
+   366→   366→            className={cn(
+   367→   367→              'glass-strong overflow-hidden elev-3',
+   368→   368→              maximized
+   369→   369→                ? 'fixed inset-0 rounded-none'
+   370→   370→                : 'w-full max-w-[1280px] h-[88vh] max-h-[860px] rounded-2xl'
+   371→   371→            )}
+   372→   372→            onClick={(e) => e.stopPropagation()}
+   373→   373→            style={{ animation: 'deltaTheaterIn 0.32s cubic-bezier(0.22,1,0.36,1)' }}
+   374→   374→          >
+   375→   375→            <div
+   376→   376→              role="dialog"
+   377→   377→              aria-modal="true"
+   378→   378→              aria-label={`Now playing: ${theater.video.title}`}
+   379→   379→              tabIndex={-1}
+   380→   380→              ref={modalRef}
+   381→   381→              className="flex h-full outline-none"
+   382→   382→            >
+   383→   383→              {/* Player area */}
+   384→   384→              <div className="flex-1 flex flex-col min-w-0">
+   385→   385→                {/* Stage */}
+   386→   386→                <div
+   387→   387→                  className={cn(
+   388→   388→                    'relative flex-1 bg-gradient-to-br grid place-items-center overflow-hidden min-h-0'
+   389→   389→                  , SUBJECT_POSTER[theater.video.subjectId])}
+   390→   390→                >
+   391→   391→                  {/* cinematic vignette + sheen */}
+   392→   392→                  <span className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(255,255,255,0.14),transparent_60%)]" />
+   393→   393→                  <span className="absolute inset-0 bg-[radial-gradient(80%_60%_at_50%_120%,rgba(0,0,0,0.5),transparent_60%)]" />
+   394→   394→
+   395→   395→                  {/* Center play / pause */}
+   396→   396→                  <button
+   397→   397→                    type="button"
+   398→   398→                    onClick={() => theater.setPlaying((p) => !p)}
+   399→   399→                    aria-label={theater.playing ? 'Pause' : 'Play'}
+   400→   400→                    className={cn(
+   401→   401→                      'relative grid place-items-center size-20 rounded-full',
+   402→   402→                      'bg-black/35 backdrop-blur-md border border-white/20',
+   403→   403→                      'hover:scale-105 hover:bg-black/45 active:scale-95',
+   404→   404→                      'transition-all duration-300'
+   405→   405→                    )}
+   406→   406→                    style={{
+   407→   407→                      animation: theater.playing ? undefined : 'deltaPlayPulse 1.8s ease-out infinite',
+   408→   408→                    }}
+   409→   409→                  >
+   410→   410→                    {theater.playing ? (
+   411→   411→                      <Pause className="size-8 fill-current text-white" />
+   412→   412→                    ) : (
+   413→   413→                      <Play className="size-8 fill-current text-white translate-x-0.5" />
+   414→   414→                    )}
+   415→   415→                  </button>
+   416→   416→
+   417→   417→                  {/* Top-left subject + chapter label */}
+   418→   418→                  <div className="absolute top-4 left-4 flex items-center gap-2 text-white/85">
+   419→   419→                    <span className="px-2 py-1 rounded-md bg-black/30 backdrop-blur-sm text-[11px] font-medium uppercase tracking-wide">
+   420→   420→                      {SUBJECTS.find((s) => s.id === theater.video!.subjectId)?.name}
+   421→   421→                    </span>
+   422→   422→                    <span className="hidden sm:inline px-2 py-1 rounded-md bg-black/30 backdrop-blur-sm text-[11px] text-white/70 max-w-[260px] truncate">
+   423→   423→                      {chapterTitleOf(theaterVideoId)}
+   424→   424→                    </span>
+   425→   425→                  </div>
+   426→   426→
+   427→   427→                  {/* Close */}
+   428→   428→                  <button
+   429→   429→                    type="button"
+   430→   430→                    onClick={() => closeTheater()}
+   431→   431→                    aria-label="Close player"
+   432→   432→                    className="absolute top-4 right-4 grid place-items-center size-9 rounded-full bg-black/35 backdrop-blur-md border border-white/15 text-white hover:bg-black/55 hover:scale-105 transition-all"
+   433→   433→                  >
+   434→   434→                    <X className="size-4" />
+   435→   435→                  </button>
+   436→   436→
+   437→   437→                  {/* Complete badge bottom-left */}
+   438→   438→                  {videoProgress[theaterVideoId]?.completed && (
+   439→   439→                    <span className="absolute bottom-4 left-4 inline-flex items-center gap-1.5 px-2 py-1 rounded-md bg-primary/85 text-primary-foreground text-[11px] font-medium">
+   440→   440→                      <Check className="size-3.5" /> Completed
+   441→   441→                    </span>
+   442→   442→                  )}
+   443→   443→                </div>
+   444→   444→
+   445→   445→                {/* Controls */}
+   446→   446→                <div className="p-4 space-y-3 border-t border-border bg-card/70 backdrop-blur-md">
+   447→   447→                  <Seekbar
+   448→   448→                    fraction={theater.fraction}
+   449→   449→                    duration={theater.video.durationSec}
+   450→   450→                    onSeek={(f) => useStore.getState().setVideoProgress(theaterVideoId, f)}
+   451→   451→                  />
+   452→   452→
+   453→   453→                  {/* Controls row */}
+   454→   454→                  <div className="flex items-center gap-2 sm:gap-3">
+   455→   455→                    {/* Left: playback */}
+   456→   456→                    <div className="flex items-center gap-1">
+   457→   457→                      <CtrlButton
+   458→   458→                        onClick={() =>
+   459→   459→                          useStore.getState().setVideoProgress(
+   460→   460→                            theaterVideoId,
+   461→   461→                            Math.max(0, theater.fraction - 10 / theater.video!.durationSec)
+   462→   462→                          )
+   463→   463→                        }
+   464→   464→                        label="Rewind 10 seconds (←)"
+   465→   465→                      >
+   466→   466→                        <SkipBack className="size-4" />
+   467→   467→                      </CtrlButton>
+   468→   468→                      <CtrlButton
+   469→   469→                        onClick={() => theater.setPlaying((p) => !p)}
+   470→   470→                        label={theater.playing ? 'Pause (Space)' : 'Play (Space)'}
+   471→   471→                        active
+   472→   472→                        className="size-10"
+   473→   473→                      >
+   474→   474→                        {theater.playing ? (
+   475→   475→                          <Pause className="size-5 fill-current" />
+   476→   476→                        ) : (
+   477→   477→                          <Play className="size-5 fill-current translate-x-0.5" />
+   478→   478→                        )}
+   479→   479→                      </CtrlButton>
+   480→   480→                      <CtrlButton
+   481→   481→                        onClick={() =>
+   482→   482→                          useStore.getState().setVideoProgress(
+   483→   483→                            theaterVideoId,
+   484→   484→                            Math.min(1, theater.fraction + 10 / theater.video!.durationSec)
+   485→   485→                          )
+   486→   486→                        }
+   487→   487→                        label="Forward 10 seconds (→)"
+   488→   488→                      >
+   489→   489→                        <SkipForward className="size-4" />
+   490→   490→                      </CtrlButton>
+   491→   491→                    </div>
+   492→   492→
+   493→   493→                    {/* Center: time */}
+   494→   494→                    <div className="flex-1 text-center min-w-0">
+   495→   495→                      <span className="text-xs tabular text-muted-foreground">
+   496→   496→                        <span className="text-foreground font-medium">
+   497→   497→                          {fmtDuration(Math.round(theater.fraction * theater.video.durationSec))}
+   498→   498→                        </span>
+   499→   499→                        <span className="mx-1.5 opacity-50">/</span>
+   500→   500→                        {fmtDuration(theater.video.durationSec)}
+   501→   501→                      </span>
+   502→   502→                    </div>
+   503→   503→
+   504→   504→                    {/* Right: speed / volume / pip / fullscreen */}
+   505→   505→                    <div className="flex items-center gap-1">
+   506→   506→                      <button
+   507→   507→                        type="button"
+   508→   508→                        onClick={cycleSpeed}
+   509→   509→                        aria-label={`Playback speed ${theater.speed}x`}
+   510→   510→                        title="Cycle playback speed"
+   511→   511→                        className="flex items-center gap-1 rounded-full bg-white/5 border border-border px-2.5 py-1.5 text-xs tabular text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors"
+   512→   512→                      >
+   513→   513→                        <Gauge className="size-3.5" />
+   514→   514→                        <span>{theater.speed}x</span>
+   515→   515→                      </button>
+   516→   516→                      <CtrlButton
+   517→   517→                        onClick={() => setMuted((m) => !m)}
+   518→   518→                        label={muted ? 'Unmute' : 'Mute'}
+   519→   519→                      >
+   520→   520→                        {muted ? <VolumeX className="size-4" /> : <Volume2 className="size-4" />}
+   521→   521→                      </CtrlButton>
+   522→   522→                      <CtrlButton onClick={enterPip} label="Picture in picture">
+   523→   523→                        <PictureInPicture2 className="size-4" />
+   524→   524→                      </CtrlButton>
+   525→   525→                      <CtrlButton
+   526→   526→                        onClick={toggleFullscreen}
+   527→   527→                        label={maximized ? 'Exit fullscreen (F)' : 'Fullscreen (F)'}
+   528→   528→                      >
+   529→   529→                        {maximized ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
+   530→   530→                      </CtrlButton>
+   531→   531→                    </div>
+   532→   532→                  </div>
+   533→   533→
+   534→   534→                  {/* Title row + action buttons */}
+   535→   535→                  <div className="flex items-center justify-between gap-3 pt-1">
+   536→   536→                    <div className="min-w-0">
+   537→   537→                      <p className="text-sm font-medium truncate">{theater.video.title}</p>
+   538→   538→                      <p className="text-xs text-muted-foreground truncate mt-0.5">
+   539→   539→                        {theater.video.instructor} · {chapterTitleOf(theaterVideoId)}
+   540→   540→                      </p>
+   541→   541→                    </div>
+   542→   542→                    <div className="flex items-center gap-1.5 shrink-0">
+   543→   543→                      <ActionToggle label="Like this lecture" icon={Heart} />
+   544→   544→                      <ActionToggle label="Bookmark this lecture" icon={Bookmark} />
+   545→   545→                      <ActionToggle label="Download this lecture" icon={Download} />
+   546→   546→                    </div>
+   547→   547→                  </div>
+   548→   548→                </div>
+   549→   549→              </div>
+   550→   550→
+   551→   551→              {/* Up Next sidebar */}
+   552→   552→              {!maximized && (
+   553→   553→                <aside className="hidden md:flex w-72 shrink-0 border-l border-border bg-card/40 flex-col">
+   554→   554→                  <div className="flex items-center justify-between gap-2 p-4 border-b border-border">
+   555→   555→                    <div className="flex items-center gap-2 min-w-0">
+   556→   556→                      <ListVideo className="size-4 text-primary shrink-0" />
+   557→   557→                      <span className="text-sm font-medium truncate">Up Next</span>
+   558→   558→                    </div>
+   559→   559→                    <span className="text-[11px] text-muted-foreground tabular shrink-0">
+   560→   560→                      {queue.length}
+   561→   561→                    </span>
+   562→   562→                  </div>
+   563→   563→                  <div className="flex-1 overflow-y-auto scroll-thin p-2 space-y-1">
+   564→   564→                    {queue.map((v, i) => {
+   565→   565→                      const isCurrent = v.id === theaterVideoId
+   566→   566→                      const subP = videoProgress[v.id]
+   567→   567→                      return (
+   568→   568→                        <button
+   569→   569→                          key={v.id}
+   570→   570→                          type="button"
+   571→   571→                          onClick={() => openTheater(v.id)}
+   572→   572→                          aria-current={isCurrent ? 'true' : undefined}
+   573→   573→                          className={cn(
+   574→   574→                            'w-full flex gap-2.5 rounded-xl p-2 text-left transition-all',
+   575→   575→                            'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60',
+   576→   576→                            isCurrent
+   577→   577→                              ? 'bg-primary/12 ring-1 ring-primary/25'
+   578→   578→                              : 'hover:bg-white/5'
+   579→   579→                          )}
+   580→   580→                        >
+   581→   581→                          <span
+   582→   582→                            className={cn(
+   583→   583→                              'relative grid place-items-center w-24 h-14 shrink-0 rounded-lg bg-gradient-to-br overflow-hidden',
+   584→   584→                              SUBJECT_POSTER[v.subjectId]
+   585→   585→                            )}
+   586→   586→                          >
+   587→   587→                            {isCurrent ? (
+   588→   588→                              <span className="flex items-end gap-0.5 h-5">
+   589→   589→                                {[0, 1, 2, 3].map((bi) => (
+   590→   590→                                  <span
+   591→   591→                                    key={bi}
+   592→   592→                                    className="w-0.5 bg-primary rounded-full origin-bottom"
+   593→   593→                                    style={{
+   594→   594→                                      height: '100%',
+   595→   595→                                      animation: `deltaEqualize 0.9s ${bi * 0.15}s ease-in-out infinite`,
+   596→   596→                                    }}
+   597→   597→                                  />
+   598→   598→                                ))}
+   599→   599→                              </span>
+   600→   600→                            ) : (
+   601→   601→                              <Play className="size-4 fill-current text-white/85 translate-x-0.5" />
+   602→   602→                            )}
+   603→   603→                            <span className="absolute bottom-1 right-1 text-[10px] tabular text-white/95 bg-black/45 px-1 rounded">
+   604→   604→                              {fmtDuration(v.durationSec)}
+   605→   605→                            </span>
+   606→   606→                            {subP?.completed && (
+   607→   607→                              <span className="absolute top-1 left-1 grid place-items-center size-3.5 rounded-full bg-primary text-primary-foreground">
+   608→   608→                                <Check className="size-2.5" />
+   609→   609→                              </span>
+   610→   610→                            )}
+   611→   611→                          </span>
+   612→   612→                          <span className="min-w-0 flex-1 py-0.5">
+   613→   613→                            <span className="block text-xs font-medium line-clamp-2 leading-tight text-pretty">
+   614→   614→                              {v.title}
+   615→   615→                            </span>
+   616→   616→                            <span className="block text-[11px] text-muted-foreground mt-1 truncate">
+   617→   617→                              {v.instructor}
+   618→   618→                            </span>
+   619→   619→                            {isCurrent ? (
+   620→   620→                              <span className="mt-1 inline-flex items-center gap-1 text-[10px] font-medium uppercase tracking-wide text-primary">
+   621→   621→                                <span className="size-1.5 rounded-full bg-primary live-dot" />
+   622→   622→                                Now playing
+   623→   623→                              </span>
+   624→   624→                            ) : (
+   625→   625→                              <span className="mt-1 inline-flex items-center text-[10px] text-muted-foreground uppercase tracking-wide">
+   626→   626→                                {i === 0 ? 'Up next' : 'Queued'}
+   627→   627→                              </span>
+   628→   628→                            )}
+   629→   629→                          </span>
+   630→   630→                        </button>
+   631→   631→                      )
+   632→   632→                    })}
+   633→   633→                  </div>
+   634→   634→                </aside>
+   635→   635→              )}
+   636→   636→            </div>
+   637→   637→          </div>
+   638→   638→        </div>
+   639→   639→      )}
+   640→   640→
+   641→   641→      {/* PIP */}
+   642→   642→      {pipVideoId && pip.video && (
+   643→   643→        <div
+   644→   644→          className="fixed bottom-5 right-5 z-[95] w-[320px] max-w-[calc(100vw-2.5rem)] rounded-xl overflow-hidden glass-strong elev-3"
+   645→   645→          style={{ animation: 'deltaPipIn 0.32s cubic-bezier(0.22,1,0.36,1)' }}
+   646→   646→        >
+   647→   647→          <div
+   648→   648→            className={cn(
+   649→   649→              'relative h-40 bg-gradient-to-br grid place-items-center cursor-pointer overflow-hidden',
+   650→   650→              SUBJECT_POSTER[pip.video.subjectId]
+   651→   651→            )}
+   652→   652→            onClick={restoreFromPip}
+   653→   653→            role="button"
+   654→   654→            aria-label="Restore picture-in-picture to theater"
+   655→   655→            tabIndex={0}
+   656→   656→            onKeyDown={(e) => {
+   657→   657→              if (e.key === 'Enter' || e.key === ' ') {
+   658→   658→                e.preventDefault()
+   659→   659→                restoreFromPip()
+   660→   660→              }
+   661→   661→            }}
+   662→   662→          >
+   663→   663→            <span className="absolute inset-0 bg-[radial-gradient(120%_80%_at_50%_-10%,rgba(255,255,255,0.12),transparent_60%)]" />
+   664→   664→            <button
+   665→   665→              type="button"
+   666→   666→              onClick={(e) => {
+   667→   667→                e.stopPropagation()
+   668→   668→                pip.setPlaying((p) => !p)
+   669→   669→              }}
+   670→   670→              aria-label={pip.playing ? 'Pause' : 'Play'}
+   671→   671→              className="grid place-items-center size-12 rounded-full bg-black/35 backdrop-blur-md border border-white/20 hover:scale-105 transition-transform"
+   672→   672→            >
+   673→   673→              {pip.playing ? (
+   674→   674→                <Pause className="size-5 fill-current text-white" />
+   675→   675→              ) : (
+   676→   676→                <Play className="size-5 fill-current text-white translate-x-0.5" />
+   677→   677→              )}
+   678→   678→            </button>
+   679→   679→            <button
+   680→   680→              type="button"
+   681→   681→              onClick={(e) => {
+   682→   682→                e.stopPropagation()
+   683→   683→                closePip()
+   684→   684→              }}
+   685→   685→              aria-label="Close picture-in-picture"
+   686→   686→              className="absolute top-2 right-2 grid place-items-center size-7 rounded-full bg-black/45 backdrop-blur-sm text-white hover:bg-black/65 transition-colors"
+   687→   687→            >
+   688→   688→              <X className="size-3.5" />
+   689→   689→            </button>
+   690→   690→            <button
+   691→   691→              type="button"
+   692→   692→              onClick={(e) => {
+   693→   693→                e.stopPropagation()
+   694→   694→                restoreFromPip()
+   695→   695→              }}
+   696→   696→              aria-label="Restore to theater"
+   697→   697→              title="Restore to theater"
+   698→   698→              className="absolute top-2 left-2 grid place-items-center size-7 rounded-full bg-black/45 backdrop-blur-sm text-white hover:bg-black/65 transition-colors"
+   699→   699→            >
+   700→   700→              <Maximize2 className="size-3.5" />
+   701→   701→            </button>
+   702→   702→            {/* progress bar */}
+   703→   703→            <span className="absolute bottom-0 inset-x-0 h-1 bg-black/30">
+   704→   704→              <span
+   705→   705→                className="block h-full bg-primary transition-[width] duration-300"
+   706→   706→                style={{ width: `${pip.fraction * 100}%` }}
+   707→   707→              />
+   708→   708→            </span>
+   709→   709→          </div>
+   710→   710→          <div className="p-3">
+   711→   711→            <p className="text-xs font-medium truncate">{pip.video.title}</p>
+   712→   712→            <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+   713→   713→              {pip.video.instructor} · {fmtDuration(Math.round(pip.fraction * pip.video.durationSec))} / {fmtDuration(pip.video.durationSec)}
+   714→   714→            </p>
+   715→   715→          </div>
+   716→   716→        </div>
+   717→   717→      )}
+   718→   718→    </>
+   719→   719→  )
+   720→   720→}
+   721→   721→
