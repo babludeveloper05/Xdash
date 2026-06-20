@@ -287,7 +287,7 @@ export function ComponentTestDue() {
   return (
     <div className="flex flex-col h-full">
       <Header icon={<BookMarked className="size-3.5" />} title="Tests Due" />
-      <div className="flex-1 space-y-0.5 overflow-y-auto scroll-thin mt-0.5 max-h-40 -mx-1">
+      <div className="flex-1 space-y-0.5 overflow-y-auto scroll-thin mt-0.5 -mx-1">
         {due.map((t) => {
           const hours = t.deadlineHours
           const tone: 'destructive' | 'warning' | 'muted' =
@@ -348,7 +348,7 @@ export function ComponentQuickNotes() {
         aria-label="Quick scratch note"
         className="w-full resize-none rounded-xl bg-white/[0.04] border border-border p-2.5 text-xs outline-none focus:border-primary/40 focus:bg-white/[0.06] placeholder:text-muted-foreground/60 h-16 scroll-thin transition-colors text-pretty"
       />
-      <div className="mt-2 space-y-1 overflow-y-auto scroll-thin max-h-12">
+      <div className="mt-2 flex-1 space-y-1 overflow-y-auto scroll-thin min-h-0">
         {notes.slice(0, 2).map((n) => (
           <p
             key={n.id}
@@ -417,7 +417,7 @@ export function ComponentRecentActivity() {
   return (
     <div className="flex flex-col h-full">
       <Header icon={<ActivityIcon className="size-3.5" />} title="Recent Activity" />
-      <div className="flex-1 overflow-y-auto scroll-thin mt-0.5 max-h-40 -mx-1 px-1">
+      <div className="flex-1 overflow-y-auto scroll-thin mt-0.5 -mx-1 px-1">
         <div className="relative">
           {items.map((a, i) => {
             const last = i === items.length - 1

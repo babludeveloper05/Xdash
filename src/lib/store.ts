@@ -152,11 +152,11 @@ const DEFAULT_COMPONENTS: ComponentState[] = [
   { id: 'w-goal', type: 'dailyGoal', x: 564, y: 140, w: 220, h: 224, z: 1 },
   { id: 'w-rings', type: 'subjectRings', x: 804, y: 140, w: 360, h: 224, z: 1 },
   { id: 'w-rank', type: 'batchRank', x: 1184, y: 140, w: 240, h: 224, z: 1 },
-  { id: 'w-tests', type: 'testDue', x: 24, y: 384, w: 280, h: 264, z: 1 },
-  { id: 'w-notes', type: 'quickNotes', x: 324, y: 384, w: 280, h: 264, z: 1 },
-  { id: 'w-leader', type: 'leaderPeek', x: 624, y: 384, w: 260, h: 264, z: 1 },
-  { id: 'w-activity', type: 'recentActivity', x: 904, y: 384, w: 260, h: 264, z: 1 },
-  { id: 'w-custom', type: 'customCountdown', x: 1184, y: 384, w: 240, h: 264, z: 1 },
+  { id: 'w-tests', type: 'testDue', x: 24, y: 384, w: 280, h: 300, z: 1 },
+  { id: 'w-notes', type: 'quickNotes', x: 324, y: 384, w: 280, h: 300, z: 1 },
+  { id: 'w-leader', type: 'leaderPeek', x: 624, y: 384, w: 260, h: 300, z: 1 },
+  { id: 'w-activity', type: 'recentActivity', x: 904, y: 384, w: 260, h: 300, z: 1 },
+  { id: 'w-custom', type: 'customCountdown', x: 1184, y: 384, w: 240, h: 300, z: 1 },
 ]
 
 /**
