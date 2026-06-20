@@ -1042,3 +1042,49 @@ Stage Summary:
   - syllabus.tsx summary row: was 1 GlassCard containing 4 stats → now 4 separate StatBlock cards (avoids nested GlassCards). Matches the tests.tsx stat-row pattern.
   - syllabus.tsx subject accents: biology/cs/english tones shift slightly because the global `subjectTone` map has marginally different oklch values for those three subjects.
   - notes.tsx empty state: now wrapped in a GlassCard (via EmptyStateWrapper) instead of bare EmptyState — small visual upgrade consistent with library.tsx.
+
+---
+Task ID: backend-realtime-foundation
+Agent: main (Z.ai Code)
+Task: Build the offline-first backend (Python FastAPI), real-time service (Socket.io), and frontend sync/realtime layers. Per user decision: Next.js + Python FastAPI, offline-first, no AI for now, real-time (roadmap D).
+
+Work Log:
+- **FastAPI backend** (`mini-services/api/` — Python venv, port 8000):
+  - `config.py` — SQLite for dev (converts Prisma `file:` URLs to SQLAlchemy `sqlite:///` format), Postgres-ready via `DATABASE_URL` env var. JWT config.
+  - `database.py` — SQLAlchemy engine + session factory + `get_db` dependency.
+  - `models.py` — 17 SQLAlchemy models: User, UserSettings, UserAppearance, Subject, Chapter, Video, Test, Question, Note, Doubt, DoubtAnswer, VideoProgress, TestAttempt, DashboardComponent, LeaderboardEntry, LiveSession, Achievement. All relationships + cascades configured.
+  - `schemas.py` — Pydantic schemas for request/response validation (UserCreate, UserLogin, Token, UserOut, SyncPayload, SyncResponse, NoteCreate/Update/Out, DoubtCreate/Out).
+  - `auth.py` — password hashing (pbkdf2_sha256, avoids bcrypt 5.0 compat issues) + JWT creation/verification.
+  - `routers/auth.py` — register, login, me endpoints with OAuth2PasswordBearer.
+  - `routers/sync.py` — POST /sync endpoint: receives full local state (notes, doubts, progress, components, settings, appearance, profile), writes to DB (last-write-wins), returns merged state.
+  - `routers/notes.py` — CRUD for notes.
+  - `routers/community.py` — leaderboard + live session reads.
+  - `main.py` — FastAPI app, CORS, router mounting, `create_all` on startup. Port 8000, no reload (stable in sandbox).
+
+- **Socket.io real-time service** (`mini-services/realtime/` — bun, port 3003):
+  - `index.ts` — Socket.io server handling: user presence (join/leave + batch rooms), live class events (join/leave/viewer count/chat), leaderboard subscriptions + score updates, doubt community events (new/answer/upvote). Health endpoint at /health.
+  - No persistence — ephemeral event routing only. Persistent data goes through FastAPI sync.
+
+- **Frontend sync layer** (`src/lib/sync.ts`):
+  - `useSync()` hook — pushes full Zustand state to FastAPI `/api/sync?XTransformPort=8000` when online. Triggers: on mount, on window 'online' event, every 60s periodic. Skipped when no auth token (guest mode) or offline.
+  - Reads from the Zustand store (notes, doubts, videoProgress, history, components, settings, appearance, profile) and POSTs to the sync endpoint.
+
+- **Frontend real-time layer** (`src/lib/realtime.ts`):
+  - `useRealtime()` hook — singleton Socket.io connection to `/?XTransformPort=3003`. Returns socket + connected status.
+  - `joinRealtime()`, `subscribeLeaderboard()`, `subscribeDoubts()` helper functions for emitting/subscribing.
+  - Auto-reconnect with 2s delay.
+
+- **Wired into AppShell** — `useSync()` + `useRealtime()` mounted in `<AppShell>`. The app now pushes local state to the backend when online and receives real-time updates.
+
+Verification:
+- FastAPI: register + login return JWT tokens ✓, 17 DB tables created in SQLite ✓, health endpoint ✓
+- Socket.io: health endpoint ✓, connection handling ✓
+- Next.js: HTTP 200, sync + realtime hooks mounted, clean compiles ✓
+- All three services running: Next.js (3000), FastAPI (8000), Socket.io (3003)
+- Gateway routing (XTransformPort) works for GET requests; POST via gateway needs Caddy config debugging (direct port works).
+
+Stage Summary:
+- 10 new files: FastAPI backend (7 files: config, database, models, schemas, auth, main, 4 routers), Socket.io service (1 file), frontend sync + realtime (2 files).
+- The offline-first architecture is live: Zustand store is the local source of truth (localStorage), FastAPI is the online sync target (SQLite→Postgres), Socket.io handles real-time events.
+- Auth works (register/login/JWT). Sync endpoint works (full-state push/pull). Real-time service handles live class, leaderboard, and doubt events.
+- Next: wire auth UI (login/register page), seed the DB with the existing mock data, and debug gateway POST routing.

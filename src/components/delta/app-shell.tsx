@@ -28,6 +28,8 @@ import {
   type PageTransitionCtx,
 } from '@/lib/motion'
 import { ThemeVars } from './theme-vars'
+import { useSync } from '@/lib/sync'
+import { useRealtime } from '@/lib/realtime'
 
 function ActivePage() {
   const tab = useStore((s) => s.activeTab)
@@ -58,6 +60,12 @@ export function AppShell() {
   const prefersReduced = useReducedMotion()
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
+
+  // Offline-first sync + real-time socket.io connection.
+  // Sync pushes/pulls to the FastAPI backend when online.
+  // Realtime connects to the socket.io service for live updates.
+  useSync()
+  useRealtime()
 
   // Scroll progress for the parallax progress bar. Tracks the main scroll
   // container via a manual listener (SSR-safe — framer-motion's useScroll
