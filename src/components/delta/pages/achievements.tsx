@@ -9,6 +9,7 @@ import {
   Lock, Check,
 } from 'lucide-react'
 import { GlassCard, Pill, ProgressRing } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { achievements, type Achievement } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -90,12 +91,13 @@ export function AchievementsPage() {
   )
 
   return (
-    <motion.div
-      className="h-full flex flex-col"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        className="flex flex-col"
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
         <ProgressRing
           value={earnedCount / achievements.length}
@@ -111,7 +113,7 @@ export function AchievementsPage() {
 
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 pb-6 flex flex-col gap-4 flex-1 min-h-0">
         {/* Stat row */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 @sm:grid-cols-4 gap-3">
           <StatTile
             label="Earned"
             value={earnedCount}
@@ -168,7 +170,7 @@ export function AchievementsPage() {
 
         {/* Grid */}
         <div className="flex-1 overflow-y-auto scroll-thin pr-1 -mr-1">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 pb-1">
+          <div className="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4 gap-4 pb-1">
             {filtered.map((a) => {
               const Icon = ICONS[a.icon] ?? Trophy
               const r = RARITY[a.rarity]
@@ -255,7 +257,8 @@ export function AchievementsPage() {
           </div>
         </div>
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }
 

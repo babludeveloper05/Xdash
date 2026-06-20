@@ -1,0 +1,940 @@
+     1→'use client'
+     2→
+     3→import { useMemo, useState, useEffect, useRef } from 'react'
+     4→import { motion, useReducedMotion } from 'framer-motion'
+     5→import {
+     6→  FileText, Clock, ChevronRight, Check, X, Grid3x3,
+     7→  ChevronLeft, Send, RotateCcw, TrendingUp, TrendingDown, History, BarChart3,
+     8→  Trophy, Target, Timer, ArrowLeft, CircleCheck, CircleDot, Bookmark, Inbox,
+     9→} from 'lucide-react'
+    10→import {
+    11→  GlassCard, Pill, PrimaryButton, GhostButton, IconButton,
+    12→  ProgressRing, MetricCard, Badge, EmptyState,
+    13→} from '@/components/delta/ui'
+    14→import { useStore, type HistoryRow } from '@/lib/store'
+    15→import { tests, buildQuestions, type TestItem, type Question } from '@/lib/mock-data'
+    16→import { cn } from '@/lib/utils'
+    17→import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
+    18→
+    19→type View = 'available' | 'attempt' | 'results' | 'history' | 'analysis'
+    20→type BadgeTone = 'default' | 'primary' | 'success' | 'warning' | 'destructive'
+    21→
+    22→const TEST_TYPES = ['All', 'JEE Main', 'JEE Advanced', 'Chapter Test', 'Full Syllabus', 'Previous Year'] as const
+    23→const DIFFICULTIES = ['All', 'Easy', 'Moderate', 'Hard'] as const
+    24→
+    25→interface ResultData {
+    26→  test: TestItem
+    27→  questions: Question[]
+    28→  answers: Record<number, number>
+    29→  marked: Record<number, boolean>
+    30→  correct: number
+    31→  wrong: number
+    32→  unattempted: number
+    33→  score: number
+    34→  total: number
+    35→  timeTaken: number
+    36→}
+    37→
+    38→export function TestsPage() {
+    39→  const [view, setView] = useState<View>('available')
+    40→  const [activeTest, setActiveTest] = useState<TestItem | null>(null)
+    41→  const [lastResult, setLastResult] = useState<ResultData | null>(null)
+    42→  const [analysisRow, setAnalysisRow] = useState<HistoryRow | null>(null)
+    43→
+    44→  return (
+    45→    <div className="h-full">
+    46→      {view === 'available' && (
+    47→        <AvailableView
+    48→          onStart={(t) => {
+    49→            setActiveTest(t)
+    50→            setView('attempt')
+    51→          }}
+    52→          onHistory={() => setView('history')}
+    53→        />
+    54→      )}
+    55→      {view === 'attempt' && activeTest && (
+    56→        <AttemptView
+    57→          test={activeTest}
+    58→          onSubmit={(r) => {
+    59→            setLastResult(r)
+    60→            setView('results')
+    61→          }}
+    62→          onExit={() => setView('available')}
+    63→        />
+    64→      )}
+    65→      {view === 'results' && lastResult && (
+    66→        <ResultsView
+    67→          result={lastResult}
+    68→          onReview={() => {
+    69→            setAnalysisRow(null)
+    70→            setView('analysis')
+    71→          }}
+    72→          onDone={() => setView('available')}
+    73→        />
+    74→      )}
+    75→      {view === 'history' && (
+    76→        <HistoryView
+    77→          onBack={() => setView('available')}
+    78→          onAnalyze={(row) => {
+    79→            setAnalysisRow(row)
+    80→            setView('analysis')
+    81→          }}
+    82→        />
+    83→      )}
+    84→      {view === 'analysis' && (
+    85→        <AnalysisView
+    86→          result={lastResult}
+    87→          row={analysisRow}
+    88→          onBack={() => setView(lastResult ? 'results' : 'history')}
+    89→        />
+    90→      )}
+    91→    </div>
+    92→  )
+    93→}
+    94→
+    95→/* ---------------- AVAILABLE ---------------- */
+    96→function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void; onHistory: () => void }) {
+    97→  const history = useStore((s) => s.history)
+    98→  const reduce = useReducedMotion() ?? false
+    99→  const [type, setType] = useState<string>('All')
+   100→  const [diff, setDiff] = useState<string>('All')
+   101→
+   102→  const dueCount = useMemo(() => tests.filter((t) => t.deadlineHours !== null).length, [])
+   103→  const avgPct = useMemo(() => {
+   104→    if (!history.length) return 0
+   105→    return Math.round((history.reduce((acc, h) => acc + h.score / h.total, 0) / history.length) * 100)
+   106→  }, [history])
+   107→  const recentTrend = useMemo(() => {
+   108→    if (history.length < 2) return 0
+   109→    const recent = history.slice(0, 5)
+   110→    return Math.round(recent.reduce((a, h) => a + h.trend, 0) / recent.length)
+   111→  }, [history])
+   112→
+   113→  const list = useMemo(
+   114→    () =>
+   115→      tests.filter(
+   116→        (t) =>
+   117→          (type === 'All' || t.type === type) &&
+   118→          (diff === 'All' || t.difficulty === diff)
+   119→      ),
+   120→    [type, diff]
+   121→  )
+   122→
+   123→  return (
+   124→    <motion.div
+   125→      className="h-full flex flex-col gap-4"
+   126→      variants={staggerContainer(reduce)}
+   127→      initial="initial"
+   128→      animate="animate"
+   129→    >
+   130→      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+   131→        <GhostButton onClick={onHistory}>
+   132→          <History className="size-3.5" /> History
+   133→        </GhostButton>
+   134→      </motion.div>
+   135→
+   136→      {/* Stat row */}
+   137→      <motion.div
+   138→        variants={staggerItem(reduce)}
+   139→        transition={itemTransition(reduce)}
+   140→        className="grid grid-cols-2 @md:grid-cols-4 gap-3"
+   141→      >
+   142→        <MetricCard label="Tests Due" value={dueCount} sub="Active deadlines" icon={<Clock className="size-3.5" />} />
+   143→        <MetricCard label="Avg Score" value={`${avgPct}%`} sub="Across attempts" icon={<Target className="size-3.5" />} />
+   144→        <MetricCard
+   145→          label="Tests Taken"
+   146→          value={history.length}
+   147→          sub="All time"
+   148→          icon={<BarChart3 className="size-3.5" />}
+   149→          trend={{ value: recentTrend, suffix: 'pts' }}
+   150→        />
+   151→        <MetricCard label="Available" value={tests.length} sub="Mock bank" icon={<FileText className="size-3.5" />} />
+   152→      </motion.div>
+   153→
+   154→      {/* Filters */}
+   155→      <motion.div
+   156→        variants={staggerItem(reduce)}
+   157→        transition={itemTransition(reduce)}
+   158→        className="flex flex-col gap-2"
+   159→      >
+   160→        <div className="flex items-center gap-1.5 flex-wrap">
+   161→          <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">Type</span>
+   162→          {TEST_TYPES.map((t) => (
+   163→            <Pill key={t} active={type === t} onClick={() => setType(t)}>
+   164→              {t}
+   165→            </Pill>
+   166→          ))}
+   167→        </div>
+   168→        <div className="flex items-center gap-1.5 flex-wrap">
+   169→          <span className="text-[11px] uppercase tracking-wide text-muted-foreground mr-1">Level</span>
+   170→          {DIFFICULTIES.map((d) => (
+   171→            <Pill key={d} active={diff === d} onClick={() => setDiff(d)}>
+   172→              {d}
+   173→            </Pill>
+   174→          ))}
+   175→        </div>
+   176→      </motion.div>
+   177→
+   178→      {/* Test grid */}
+   179→      <motion.div
+   180→        variants={staggerItem(reduce)}
+   181→        transition={itemTransition(reduce)}
+   182→        className="flex-1 overflow-y-auto scroll-thin pr-1 min-h-0"
+   183→      >
+   184→        {list.length === 0 ? (
+   185→          <EmptyState
+   186→            icon={<Inbox className="size-6" />}
+   187→            title="No tests match"
+   188→            hint="Try a different type or difficulty filter."
+   189→          />
+   190→        ) : (
+   191→          <div className="grid grid-cols-1 @md:grid-cols-2 @xl:grid-cols-3 gap-3 pb-1">
+   192→            {list.map((t) => (
+   193→              <TestCard key={t.id} test={t} onStart={() => onStart(t)} />
+   194→            ))}
+   195→          </div>
+   196→        )}
+   197→      </motion.div>
+   198→    </motion.div>
+   199→  )
+   200→}
+   201→
+   202→function TestCard({ test, onStart }: { test: TestItem; onStart: () => void }) {
+   203→  const due = test.deadlineHours
+   204→  const urgent = due !== null && due <= 24
+   205→  const soon = due !== null && due > 24 && due <= 72
+   206→
+   207→  const deadlineTone: BadgeTone = urgent ? 'destructive' : soon ? 'warning' : 'default'
+   208→  const deadlineLabel =
+   209→    due === null ? 'No deadline' : due <= 24 ? `${due}h left` : `${Math.round(due / 24)}d left`
+   210→
+   211→  const diffTone: BadgeTone =
+   212→    test.difficulty === 'Hard' ? 'destructive' : test.difficulty === 'Moderate' ? 'warning' : 'success'
+   213→
+   214→  return (
+   215→    <GlassCard className="p-4 flex flex-col gap-3 group transition-all duration-300 hover:elev-2 hover:-translate-y-0.5">
+   216→      <div className="flex items-start justify-between gap-2">
+   217→        <span className="grid place-items-center size-10 rounded-xl bg-primary/12 text-primary border border-primary/15 shrink-0">
+   218→          <FileText className="size-5" />
+   219→        </span>
+   220→        <Badge tone={deadlineTone}>
+   221→          <Clock className="size-2.5" /> {deadlineLabel}
+   222→        </Badge>
+   223→      </div>
+   224→      <div className="min-w-0">
+   225→        <p className="text-sm font-medium leading-snug line-clamp-2 text-pretty">{test.name}</p>
+   226→        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+   227→          <Badge tone="primary">{test.type}</Badge>
+   228→          <Badge tone="default">{test.subject}</Badge>
+   229→          <Badge tone={diffTone}>{test.difficulty}</Badge>
+   230→        </div>
+   231→      </div>
+   232→      <div className="flex items-center gap-3 text-[11px] text-muted-foreground tabular">
+   233→        <span className="flex items-center gap-1">
+   234→          <Grid3x3 className="size-3" /> {test.questionCount} Q
+   235→        </span>
+   236→        <span className="flex items-center gap-1">
+   237→          <Timer className="size-3" /> {test.durationMin}m
+   238→        </span>
+   239→      </div>
+   240→      <PrimaryButton onClick={onStart} className="mt-1 w-full">
+   241→        Start Test <ChevronRight className="size-3.5" />
+   242→      </PrimaryButton>
+   243→    </GlassCard>
+   244→  )
+   245→}
+   246→
+   247→/* ---------------- ATTEMPT ---------------- */
+   248→function AttemptView({
+   249→  test,
+   250→  onSubmit,
+   251→  onExit,
+   252→}: {
+   253→  test: TestItem
+   254→  onSubmit: (r: ResultData) => void
+   255→  onExit: () => void
+   256→}) {
+   257→  const count = Math.min(test.questionCount, 30) // keep attempt UI snappy
+   258→  const questions = useMemo(() => buildQuestions(count), [count])
+   259→  const [idx, setIdx] = useState(0)
+   260→  const [answers, setAnswers] = useState<Record<number, number>>({})
+   261→  const [marked, setMarked] = useState<Record<number, boolean>>({})
+   262→  const [visited, setVisited] = useState<Record<number, boolean>>({ 0: true })
+   263→  const [secondsLeft, setSecondsLeft] = useState(test.durationMin * 60)
+   264→  const [saved, setSaved] = useState(false)
+   265→  const [palette, setPalette] = useState(true)
+   266→  const [confirming, setConfirming] = useState(false)
+   267→
+   268→  // Auto-save indicator
+   269→  useEffect(() => {
+   270→    setSaved(false)
+   271→    const t = setTimeout(() => setSaved(true), 600)
+   272→    return () => clearTimeout(t)
+   273→  }, [answers, marked])
+   274→
+   275→  // Countdown
+   276→  useEffect(() => {
+   277→    if (secondsLeft <= 0) {
+   278→      handleSubmit()
+   279→      return
+   280→    }
+   281→    const iv = setInterval(() => setSecondsLeft((s) => s - 1), 1000)
+   282→    return () => clearInterval(iv)
+   283→  }, [secondsLeft])
+   284→
+   285→  const q = questions[idx]
+   286→  const answeredCount = Object.keys(answers).length
+   287→  const markedCount = Object.values(marked).filter(Boolean).length
+   288→  const progress = answeredCount / questions.length
+   289→
+   290→  function go(n: number) {
+   291→    const next = Math.max(0, Math.min(questions.length - 1, n))
+   292→    setIdx(next)
+   293→    setVisited((v) => ({ ...v, [next]: true }))
+   294→  }
+   295→
+   296→  function handleSubmit() {
+   297→    let correct = 0
+   298→    let wrong = 0
+   299→    questions.forEach((qq, i) => {
+   300→      if (answers[i] === undefined) return
+   301→      if (answers[i] === qq.correctIndex) correct++
+   302→      else wrong++
+   303→    })
+   304→    const unattempted = questions.length - correct - wrong
+   305→    const score = correct * 4 - wrong // JEE marking
+   306→    const scaledTotal = questions.length * 4
+   307→    onSubmit({
+   308→      test,
+   309→      questions,
+   310→      answers,
+   311→      marked,
+   312→      correct,
+   313→      wrong,
+   314→      unattempted,
+   315→      score: Math.max(0, score),
+   316→      total: scaledTotal,
+   317→      timeTaken: Math.round((test.durationMin * 60 - secondsLeft) / 60),
+   318→    })
+   319→  }
+   320→
+   321→  const mm = Math.floor(secondsLeft / 60)
+   322→  const ss = secondsLeft % 60
+   323→  const lowTime = secondsLeft < 300
+   324→
+   325→  function statusOf(i: number): 'answered' | 'marked' | 'visited' | 'untouched' {
+   326→    if (marked[i]) return 'marked'
+   327→    if (answers[i] !== undefined) return 'answered'
+   328→    if (visited[i]) return 'visited'
+   329→    return 'untouched'
+   330→  }
+   331→
+   332→  return (
+   333→    <div className="h-full flex flex-col">
+   334→      {/* Top bar */}
+   335→      <div className="flex items-center justify-between gap-3 pb-3 border-b border-border flex-wrap">
+   336→        <div className="flex items-center gap-3 min-w-0">
+   337→          <IconButton label="Exit test" onClick={onExit}>
+   338→            <ArrowLeft className="size-4" />
+   339→          </IconButton>
+   340→          <div className="min-w-0">
+   341→            <p className="text-sm font-medium truncate">{test.name}</p>
+   342→            <p className="text-[11px] text-muted-foreground">
+   343→              {questions.length} questions · +4 / −1 marking
+   344→            </p>
+   345→          </div>
+   346→        </div>
+   347→        <div className="flex items-center gap-3">
+   348→          <span
+   349→            className={cn(
+   350→              'text-[11px] flex items-center gap-1.5 transition-colors',
+   351→              saved ? 'text-success' : 'text-muted-foreground'
+   352→            )}
+   353→          >
+   354→            <CircleCheck className="size-3.5" /> {saved ? 'Auto-saved' : 'Saving...'}
+   355→          </span>
+   356→          <div
+   357→            className={cn(
+   358→              'flex items-center gap-2 rounded-full px-3 py-1.5 tabular font-medium border',
+   359→              lowTime
+   360→                ? 'bg-destructive/15 text-destructive border-destructive/30 animate-pulse'
+   361→                : 'bg-white/5 border-border'
+   362→            )}
+   363→          >
+   364→            <Timer className="size-4" /> {String(mm).padStart(2, '0')}:{String(ss).padStart(2, '0')}
+   365→          </div>
+   366→          <button
+   367→            onClick={() => setPalette((p) => !p)}
+   368→            className="grid place-items-center size-9 rounded-full bg-white/5 border border-border hover:bg-white/10 @lg:hidden"
+   369→            aria-label="Toggle question palette"
+   370→          >
+   371→            <Grid3x3 className="size-4" />
+   372→          </button>
+   373→          <PrimaryButton onClick={() => setConfirming(true)}>
+   374→            <Send className="size-3.5" /> Submit
+   375→          </PrimaryButton>
+   376→        </div>
+   377→      </div>
+   378→
+   379→      <div className="flex-1 flex gap-4 pt-4 min-h-0">
+   380→        {/* Question area */}
+   381→        <GlassCard className="flex-1 min-w-0 p-5 flex flex-col">
+   382→          <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+   383→            <span className="text-sm text-muted-foreground tabular">
+   384→              Question {idx + 1} of {questions.length}
+   385→            </span>
+   386→            <button
+   387→              onClick={() => setMarked((m) => ({ ...m, [idx]: !m[idx] }))}
+   388→              className={cn(
+   389→                'flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs border transition-colors',
+   390→                marked[idx]
+   391→                  ? 'bg-warning/15 text-warning border-warning/30'
+   392→                  : 'bg-white/5 border-border text-muted-foreground hover:text-foreground'
+   393→              )}
+   394→            >
+   395→              <Bookmark className={cn('size-3.5', marked[idx] && 'fill-current')} />
+   396→              {marked[idx] ? 'Marked for review' : 'Mark for review'}
+   397→            </button>
+   398→          </div>
+   399→
+   400→          {/* Progress bar */}
+   401→          <div className="h-1 rounded-full bg-white/5 overflow-hidden mb-4">
+   402→            <div
+   403→              className="h-full bg-primary rounded-full transition-all duration-300"
+   404→              style={{ width: `${progress * 100}%` }}
+   405→            />
+   406→          </div>
+   407→
+   408→          <div className="flex-1 overflow-y-auto scroll-thin pr-1">
+   409→            <p className="text-base leading-relaxed mb-5 text-pretty">{q.text}</p>
+   410→            <div className="space-y-2.5 max-w-2xl">
+   411→              {q.options.map((opt, oi) => {
+   412→                const selected = answers[idx] === oi
+   413→                return (
+   414→                  <button
+   415→                    key={oi}
+   416→                    onClick={() => setAnswers((a) => ({ ...a, [idx]: oi }))}
+   417→                    className={cn(
+   418→                      'w-full flex items-center gap-3 rounded-xl border p-3.5 text-left transition-all duration-200',
+   419→                      selected
+   420→                        ? 'bg-primary/15 border-primary/40'
+   421→                        : 'bg-white/[0.03] border-border hover:bg-white/[0.06] hover:border-border/80'
+   422→                    )}
+   423→                  >
+   424→                    <span
+   425→                      className={cn(
+   426→                        'grid place-items-center size-7 rounded-full border text-xs font-medium shrink-0 transition-colors',
+   427→                        selected
+   428→                          ? 'bg-primary text-primary-foreground border-primary'
+   429→                          : 'border-border text-muted-foreground'
+   430→                      )}
+   431→                    >
+   432→                      {String.fromCharCode(65 + oi)}
+   433→                    </span>
+   434→                    <span className="text-sm">{opt}</span>
+   435→                    {selected && <Check className="size-4 ml-auto text-primary" />}
+   436→                  </button>
+   437→                )
+   438→              })}
+   439→            </div>
+   440→          </div>
+   441→
+   442→          {/* Nav */}
+   443→          <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-border">
+   444→            <button
+   445→              onClick={() => go(idx - 1)}
+   446→              disabled={idx === 0}
+   447→              className="flex items-center gap-1.5 rounded-full bg-white/5 border border-border px-4 py-2 text-sm disabled:opacity-40 disabled:pointer-events-none hover:bg-white/10"
+   448→            >
+   449→              <ChevronLeft className="size-4" /> Previous
+   450→            </button>
+   451→            <div className="flex items-center gap-2">
+   452→              <button
+   453→                onClick={() =>
+   454→                  setAnswers((a) => {
+   455→                    const c = { ...a }
+   456→                    delete c[idx]
+   457→                    return c
+   458→                  })
+   459→                }
+   460→                className="rounded-full bg-white/5 border border-border px-4 py-2 text-sm hover:bg-white/10 text-muted-foreground"
+   461→              >
+   462→                Clear
+   463→              </button>
+   464→              <button
+   465→                onClick={() => go(idx + 1)}
+   466→                disabled={idx === questions.length - 1}
+   467→                className="flex items-center gap-1.5 rounded-full bg-cream text-cream-foreground px-4 py-2 text-sm font-medium disabled:opacity-40 disabled:pointer-events-none"
+   468→              >
+   469→                Save &amp; Next <ChevronRight className="size-4" />
+   470→              </button>
+   471→            </div>
+   472→          </div>
+   473→        </GlassCard>
+   474→
+   475→        {/* Palette */}
+   476→        {palette && (
+   477→          <GlassCard className="w-64 shrink-0 p-4 flex-col hidden @lg:flex">
+   478→            <div className="grid grid-cols-2 gap-2 mb-4 text-[11px]">
+   479→              <Legend color="bg-primary" label={`Answered ${answeredCount}`} />
+   480→              <Legend color="bg-warning" label={`Marked ${markedCount}`} />
+   481→              <Legend color="bg-white/25" label="Visited" />
+   482→              <Legend color="bg-white/5 border border-border" label="Not visited" />
+   483→            </div>
+   484→            <div className="flex-1 overflow-y-auto scroll-thin">
+   485→              <div className="grid grid-cols-5 gap-2">
+   486→                {questions.map((_, i) => {
+   487→                  const st = statusOf(i)
+   488→                  return (
+   489→                    <button
+   490→                      key={i}
+   491→                      onClick={() => go(i)}
+   492→                      className={cn(
+   493→                        'aspect-square rounded-lg text-xs font-medium grid place-items-center transition-all',
+   494→                        i === idx && 'ring-2 ring-cream ring-offset-2 ring-offset-card',
+   495→                        st === 'answered' && 'bg-primary text-primary-foreground',
+   496→                        st === 'marked' && 'bg-warning text-black',
+   497→                        st === 'visited' && 'bg-white/20 text-foreground',
+   498→                        st === 'untouched' && 'bg-white/5 border border-border text-muted-foreground'
+   499→                      )}
+   500→                    >
+   501→                      {i + 1}
+   502→                    </button>
+   503→                  )
+   504→                })}
+   505→              </div>
+   506→            </div>
+   507→            <PrimaryButton onClick={() => setConfirming(true)} className="mt-4 w-full">
+   508→              <Send className="size-3.5" /> Submit Test
+   509→            </PrimaryButton>
+   510→          </GlassCard>
+   511→        )}
+   512→      </div>
+   513→
+   514→      {/* Submit confirm */}
+   515→      {confirming && (
+   516→        <div
+   517→          className="fixed inset-0 z-50 grid place-items-center p-4 bg-black/60 backdrop-blur-sm"
+   518→          onClick={() => setConfirming(false)}
+   519→        >
+   520→          <div
+   521→            className="w-full max-w-sm glass-strong rounded-2xl elev-3 p-5 flex flex-col gap-4"
+   522→            onClick={(e) => e.stopPropagation()}
+   523→            role="dialog"
+   524→            aria-modal="true"
+   525→            aria-label="Submit test confirmation"
+   526→          >
+   527→            <div className="flex items-center gap-3">
+   528→              <span className="grid place-items-center size-10 rounded-xl bg-primary/12 text-primary border border-primary/15">
+   529→                <Send className="size-5" />
+   530→              </span>
+   531→              <div>
+   532→                <p className="text-sm font-medium">Submit test?</p>
+   533→                <p className="text-xs text-muted-foreground">
+   534→                  {answeredCount} answered · {questions.length - answeredCount} pending
+   535→                </p>
+   536→              </div>
+   537→            </div>
+   538→            <div className="flex items-center gap-2 justify-end">
+   539→              <GhostButton onClick={() => setConfirming(false)}>Keep going</GhostButton>
+   540→              <PrimaryButton onClick={handleSubmit}>
+   541→                <Check className="size-3.5" /> Submit now
+   542→              </PrimaryButton>
+   543→            </div>
+   544→          </div>
+   545→        </div>
+   546→      )}
+   547→    </div>
+   548→  )
+   549→}
+   550→
+   551→function Legend({ color, label }: { color: string; label: string }) {
+   552→  return (
+   553→    <span className="flex items-center gap-1.5 text-muted-foreground">
+   554→      <span className={cn('size-3 rounded', color)} /> {label}
+   555→    </span>
+   556→  )
+   557→}
+   558→
+   559→/* ---------------- RESULTS ---------------- */
+   560→function ResultsView({
+   561→  result,
+   562→  onReview,
+   563→  onDone,
+   564→}: {
+   565→  result: ResultData
+   566→  onReview: () => void
+   567→  onDone: () => void
+   568→}) {
+   569→  const submit = useStore((s) => s.submitTest)
+   570→  const history = useStore((s) => s.history)
+   571→  const saved = useRef(false)
+   572→  useEffect(() => {
+   573→    if (saved.current) return
+   574→    saved.current = true
+   575→    const prevScore = history[0]?.score ?? 0
+   576→    submit({
+   577→      name: result.test.name,
+   578→      type: result.test.type,
+   579→      subject: result.test.subject,
+   580→      score: result.score,
+   581→      total: result.total,
+   582→      timeTaken: result.timeTaken,
+   583→      trend: history.length ? result.score - prevScore : 0,
+   584→    })
+   585→  }, [result, submit])
+   586→
+   587→  const pct = (result.score / result.total) * 100
+   588→  const accuracy =
+   589→    result.correct + result.wrong > 0 ? (result.correct / (result.correct + result.wrong)) * 100 : 0
+   590→  const percentile = Math.min(99.9, 40 + pct * 0.6)
+   591→
+   592→  return (
+   593→    <div className="h-full overflow-y-auto scroll-thin">
+   594→      <div className="max-w-4xl mx-auto flex flex-col gap-4 py-2">
+   595→        <div className="text-center py-4">
+   596→          <span className="inline-grid place-items-center size-16 rounded-2xl bg-primary/15 text-primary mb-3 border border-primary/20">
+   597→            <Trophy className="size-8" />
+   598→          </span>
+   599→          <h1 className="text-2xl font-light tracking-tight">Test Submitted</h1>
+   600→          <p className="text-sm text-muted-foreground mt-1">{result.test.name}</p>
+   601→        </div>
+   602→
+   603→        <div className="grid grid-cols-1 @md:grid-cols-3 gap-4">
+   604→          <GlassCard className="p-6 flex flex-col items-center justify-center @md:col-span-1">
+   605→            <ProgressRing value={pct / 100} size={140} stroke={10} valueClass="text-primary">
+   606→              <div className="text-center">
+   607→                <div className="text-3xl font-light tabular">{result.score}</div>
+   608→                <div className="text-xs text-muted-foreground">/ {result.total}</div>
+   609→              </div>
+   610→            </ProgressRing>
+   611→            <p className="mt-3 text-sm text-muted-foreground">Final Score</p>
+   612→          </GlassCard>
+   613→
+   614→          <div className="@md:col-span-2 grid grid-cols-2 gap-4">
+   615→            <ResultStat icon={<Check className="size-4" />} label="Correct" value={result.correct} tone="text-success" />
+   616→            <ResultStat icon={<X className="size-4" />} label="Wrong" value={result.wrong} tone="text-destructive" />
+   617→            <ResultStat
+   618→              icon={<CircleDot className="size-4" />}
+   619→              label="Unattempted"
+   620→              value={result.unattempted}
+   621→              tone="text-muted-foreground"
+   622→            />
+   623→            <ResultStat
+   624→              icon={<Target className="size-4" />}
+   625→              label="Accuracy"
+   626→              value={`${accuracy.toFixed(0)}%`}
+   627→              tone="text-primary"
+   628→            />
+   629→            <ResultStat
+   630→              icon={<TrendingUp className="size-4" />}
+   631→              label="Percentile"
+   632→              value={percentile.toFixed(1)}
+   633→              tone="text-warning"
+   634→            />
+   635→            <ResultStat
+   636→              icon={<Timer className="size-4" />}
+   637→              label="Time"
+   638→              value={`${result.timeTaken}m`}
+   639→              tone="text-foreground"
+   640→            />
+   641→          </div>
+   642→        </div>
+   643→
+   644→        <div className="flex items-center justify-center gap-3 pt-2">
+   645→          <PrimaryButton onClick={onReview}>
+   646→            <BarChart3 className="size-3.5" /> Review &amp; Analysis
+   647→          </PrimaryButton>
+   648→          <GhostButton onClick={onDone}>
+   649→            <RotateCcw className="size-3.5" /> Back to Tests
+   650→          </GhostButton>
+   651→        </div>
+   652→      </div>
+   653→    </div>
+   654→  )
+   655→}
+   656→
+   657→function ResultStat({
+   658→  icon,
+   659→  label,
+   660→  value,
+   661→  tone,
+   662→}: {
+   663→  icon: React.ReactNode
+   664→  label: string
+   665→  value: React.ReactNode
+   666→  tone: string
+   667→}) {
+   668→  return (
+   669→    <GlassCard className="p-4 flex flex-col gap-1">
+   670→      <span className={cn('flex items-center gap-1.5 text-xs', tone)}>
+   671→        {icon} {label}
+   672→      </span>
+   673→      <span className="text-2xl font-light tabular">{value}</span>
+   674→    </GlassCard>
+   675→  )
+   676→}
+   677→
+   678→/* ---------------- HISTORY ---------------- */
+   679→function HistoryView({
+   680→  onBack,
+   681→  onAnalyze,
+   682→}: {
+   683→  onBack: () => void
+   684→  onAnalyze: (row: HistoryRow) => void
+   685→}) {
+   686→  const history = useStore((s) => s.history)
+   687→
+   688→  return (
+   689→    <div className="h-full flex flex-col gap-4">
+   690→      <div className="flex items-center justify-end gap-2 px-5 pt-5">
+   691→        <IconButton label="Back to tests" onClick={onBack}>
+   692→          <ArrowLeft className="size-4" />
+   693→        </IconButton>
+   694→      </div>
+   695→
+   696→      <GlassCard className="flex-1 overflow-hidden flex flex-col min-h-0">
+   697→        <div className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">
+   698→          <span className="col-span-5">Test</span>
+   699→          <span className="col-span-2">Score</span>
+   700→          <span className="col-span-2">Time</span>
+   701→          <span className="col-span-2">Trend</span>
+   702→          <span className="col-span-1"></span>
+   703→        </div>
+   704→        <div className="flex-1 overflow-y-auto scroll-thin">
+   705→          {history.length === 0 ? (
+   706→            <EmptyState
+   707→              icon={<Inbox className="size-6" />}
+   708→              title="No attempts yet"
+   709→              hint="Take a test to start building your history."
+   710→            />
+   711→          ) : (
+   712→            history.map((h) => {
+   713→              const pct = (h.score / h.total) * 100
+   714→              return (
+   715→                <button
+   716→                  key={h.id}
+   717→                  onClick={() => onAnalyze(h)}
+   718→                  className="w-full grid grid-cols-12 gap-3 px-4 py-3 border-b border-border/50 hover:bg-white/[0.04] text-left items-center transition-colors"
+   719→                >
+   720→                  <div className="col-span-5 min-w-0">
+   721→                    <p className="text-sm font-medium truncate">{h.name}</p>
+   722→                    <p className="text-[11px] text-muted-foreground">
+   723→                      {h.type} · {h.daysAgo === 0 ? 'Today' : `${h.daysAgo}d ago`}
+   724→                    </p>
+   725→                  </div>
+   726→                  <div className="col-span-2">
+   727→                    <span
+   728→                      className={cn(
+   729→                        'text-sm font-medium tabular',
+   730→                        pct >= 60 ? 'text-success' : pct >= 35 ? 'text-warning' : 'text-destructive'
+   731→                      )}
+   732→                    >
+   733→                      {h.score}
+   734→                    </span>
+   735→                    <span className="text-[11px] text-muted-foreground">/{h.total}</span>
+   736→                  </div>
+   737→                  <span className="col-span-2 text-sm tabular text-muted-foreground">{h.timeTaken}m</span>
+   738→                  <div className="col-span-2">
+   739→                    {h.trend === 0 ? (
+   740→                      <span className="text-[11px] text-muted-foreground">—</span>
+   741→                    ) : h.trend > 0 ? (
+   742→                      <span className="flex items-center gap-1 text-[11px] text-success">
+   743→                        <TrendingUp className="size-3" /> +{h.trend}
+   744→                      </span>
+   745→                    ) : (
+   746→                      <span className="flex items-center gap-1 text-[11px] text-destructive">
+   747→                        <TrendingDown className="size-3" /> {h.trend}
+   748→                      </span>
+   749→                    )}
+   750→                  </div>
+   751→                  <ChevronRight className="col-span-1 size-4 text-muted-foreground justify-self-end" />
+   752→                </button>
+   753→              )
+   754→            })
+   755→          )}
+   756→        </div>
+   757→      </GlassCard>
+   758→    </div>
+   759→  )
+   760→}
+   761→
+   762→/* ---------------- ANALYSIS ---------------- */
+   763→function AnalysisView({
+   764→  result,
+   765→  row,
+   766→  onBack,
+   767→}: {
+   768→  result: ResultData | null
+   769→  row: HistoryRow | null
+   770→  onBack: () => void
+   771→}) {
+   772→  const subjects = ['Physics', 'Chemistry', 'Maths']
+   773→
+   774→  const breakdown = useMemo(() => {
+   775→    if (result) {
+   776→      return subjects.map((sub) => {
+   777→        const qs = result.questions.map((q, i) => ({ q, i })).filter(({ q }) => q.subject === sub)
+   778→        const correct = qs.filter(({ i, q }) => result.answers[i] === q.correctIndex).length
+   779→        const wrong = qs.filter(
+   780→          ({ i, q }) => result.answers[i] !== undefined && result.answers[i] !== q.correctIndex
+   781→        ).length
+   782→        return { sub, total: qs.length, correct, wrong, unattempted: qs.length - correct - wrong }
+   783→      })
+   784→    }
+   785→    // synthesize
+   786→    const seed = row ? row.score : 150
+   787→    return subjects.map((sub, k) => {
+   788→      const total = 10
+   789→      const correct = Math.max(2, Math.round((seed / 300) * 10) - k)
+   790→      const wrong = Math.min(total - correct, 2 + k)
+   791→      return { sub, total, correct, wrong, unattempted: total - correct - wrong }
+   792→    })
+   793→  }, [result, row])
+   794→
+   795→  return (
+   796→    <div className="h-full overflow-y-auto scroll-thin">
+   797→      <div className="max-w-5xl mx-auto flex flex-col gap-4 py-1">
+   798→        <div className="flex items-center gap-3">
+   799→          <IconButton label="Back" onClick={onBack}>
+   800→            <ArrowLeft className="size-4" />
+   801→          </IconButton>
+   802→          <div className="min-w-0">
+   803→            <h1 className="text-2xl font-light tracking-tight truncate">Performance Analysis</h1>
+   804→            <p className="text-sm text-muted-foreground truncate">
+   805→              {result?.test.name ?? row?.name ?? 'Test review'}
+   806→            </p>
+   807→          </div>
+   808→        </div>
+   809→
+   810→        {/* Subject breakdown */}
+   811→        <div className="grid grid-cols-1 @md:grid-cols-3 gap-4">
+   812→          {breakdown.map((b) => {
+   813→            const acc = b.correct + b.wrong > 0 ? (b.correct / (b.correct + b.wrong)) * 100 : 0
+   814→            return (
+   815→              <GlassCard key={b.sub} className="p-4">
+   816→                <div className="flex items-center justify-between mb-3">
+   817→                  <span className="text-sm font-medium">{b.sub}</span>
+   818→                  <span className="text-xs text-muted-foreground tabular">
+   819→                    {b.correct}/{b.total}
+   820→                  </span>
+   821→                </div>
+   822→                <div className="flex items-center gap-4">
+   823→                  <ProgressRing value={acc / 100} size={64} stroke={6} valueClass="text-primary">
+   824→                    <span className="text-xs tabular">{acc.toFixed(0)}%</span>
+   825→                  </ProgressRing>
+   826→                  <div className="flex-1 space-y-1.5 text-[11px]">
+   827→                    <Bar label="Correct" value={b.correct} total={b.total} color="bg-success" />
+   828→                    <Bar label="Wrong" value={b.wrong} total={b.total} color="bg-destructive" />
+   829→                    <Bar label="Skipped" value={b.unattempted} total={b.total} color="bg-white/25" />
+   830→                  </div>
+   831→                </div>
+   832→              </GlassCard>
+   833→            )
+   834→          })}
+   835→        </div>
+   836→
+   837→        {/* Per-question review (only when we have the live result) */}
+   838→        {result && (
+   839→          <GlassCard className="p-4">
+   840→            <p className="text-sm font-medium mb-3">Question-by-question review</p>
+   841→            <div className="space-y-2.5 flex-1 min-h-0 overflow-y-auto scroll-thin pr-1">
+   842→              {result.questions.map((q, i) => {
+   843→                const userAns = result.answers[i]
+   844→                const isCorrect = userAns === q.correctIndex
+   845→                const attempted = userAns !== undefined
+   846→                return (
+   847→                  <div
+   848→                    key={q.id}
+   849→                    className="rounded-xl border border-border bg-white/[0.02] p-3.5"
+   850→                  >
+   851→                    <div className="flex items-start gap-3">
+   852→                      <span
+   853→                        className={cn(
+   854→                          'grid place-items-center size-6 rounded-full shrink-0 mt-0.5',
+   855→                          !attempted
+   856→                            ? 'bg-white/10 text-muted-foreground'
+   857→                            : isCorrect
+   858→                              ? 'bg-success/20 text-success'
+   859→                              : 'bg-destructive/20 text-destructive'
+   860→                        )}
+   861→                      >
+   862→                        {!attempted ? (
+   863→                          <CircleDot className="size-3.5" />
+   864→                        ) : isCorrect ? (
+   865→                          <Check className="size-3.5" />
+   866→                        ) : (
+   867→                          <X className="size-3.5" />
+   868→                        )}
+   869→                      </span>
+   870→                      <div className="min-w-0 flex-1">
+   871→                        <p className="text-sm text-pretty">{q.text}</p>
+   872→                        <div className="mt-2 flex flex-wrap gap-2 text-[11px]">
+   873→                          <span className="rounded-full bg-success/15 text-success px-2 py-0.5">
+   874→                            Correct: {String.fromCharCode(65 + q.correctIndex)}
+   875→                          </span>
+   876→                          {attempted && !isCorrect && (
+   877→                            <span className="rounded-full bg-destructive/15 text-destructive px-2 py-0.5">
+   878→                              You: {String.fromCharCode(65 + userAns)}
+   879→                            </span>
+   880→                          )}
+   881→                          {!attempted && (
+   882→                            <span className="rounded-full bg-white/5 text-muted-foreground px-2 py-0.5">
+   883→                              Skipped
+   884→                            </span>
+   885→                          )}
+   886→                          <span className="rounded-full bg-white/5 text-muted-foreground px-2 py-0.5">
+   887→                            {q.subject}
+   888→                          </span>
+   889→                        </div>
+   890→                        <p className="mt-2 text-xs text-muted-foreground leading-relaxed text-pretty">
+   891→                          <span className="text-foreground font-medium">Solution: </span>
+   892→                          {q.explanation}
+   893→                        </p>
+   894→                      </div>
+   895→                    </div>
+   896→                  </div>
+   897→                )
+   898→              })}
+   899→            </div>
+   900→          </GlassCard>
+   901→        )}
+   902→
+   903→        {!result && (
+   904→          <EmptyState
+   905→            icon={<BarChart3 className="size-6" />}
+   906→            title="Subject-level analysis"
+   907→            hint="Per-question solutions are available right after you attempt a test live."
+   908→          />
+   909→        )}
+   910→      </div>
+   911→    </div>
+   912→  )
+   913→}
+   914→
+   915→function Bar({
+   916→  label,
+   917→  value,
+   918→  total,
+   919→  color,
+   920→}: {
+   921→  label: string
+   922→  value: number
+   923→  total: number
+   924→  color: string
+   925→}) {
+   926→  const pct = total ? (value / total) * 100 : 0
+   927→  return (
+   928→    <div className="flex items-center gap-2">
+   929→      <span className="w-12 text-muted-foreground">{label}</span>
+   930→      <span className="flex-1 h-1.5 rounded-full bg-white/5 overflow-hidden">
+   931→        <span
+   932→          className={cn('block h-full rounded-full transition-all duration-500', color)}
+   933→          style={{ width: `${pct}%` }}
+   934→        />
+   935→      </span>
+   936→      <span className="w-4 text-right tabular">{value}</span>
+   937→    </div>
+   938→  )
+   939→}
+   940→

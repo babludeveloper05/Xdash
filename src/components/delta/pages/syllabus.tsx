@@ -10,6 +10,7 @@ import {
 import {
   GlassCard, Pill, ProgressRing, EmptyState,
 } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore, useSubjectProgress } from '@/lib/store'
 import { SUBJECTS, chapters, videos, type SubjectId } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
@@ -77,15 +78,16 @@ export function SyllabusPage() {
   }, [filter])
 
   return (
-    <motion.div
-      className="h-full flex flex-col gap-4"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        className="flex flex-col gap-4"
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       {/* Overall summary row */}
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 pt-5">
-        <GlassCard className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <GlassCard className="p-4 grid grid-cols-2 @sm:grid-cols-4 gap-4">
           <SummaryStat
             label="Topics mastered"
             value={String(overall.topicsDone)}
@@ -264,7 +266,7 @@ export function SyllabusPage() {
                                       <Clock className="size-3" /> {c.durationMin}m
                                     </span>
                                     {/* Inline progress bar (sm+) */}
-                                    <span className="hidden sm:flex flex-1 max-w-[120px] h-1 rounded-full bg-white/10 overflow-hidden">
+                                    <span className="hidden @sm:flex flex-1 max-w-[120px] h-1 rounded-full bg-white/10 overflow-hidden">
                                       <span
                                         className="h-full rounded-full transition-all duration-500"
                                         style={{
@@ -320,7 +322,7 @@ export function SyllabusPage() {
                                           {Math.round(p.fraction * 100)}%
                                         </span>
                                       )}
-                                      <span className="text-[11px] text-muted-foreground shrink-0 hidden sm:inline">
+                                      <span className="text-[11px] text-muted-foreground shrink-0 hidden @sm:inline">
                                         {v.instructor}
                                       </span>
                                     </button>
@@ -339,7 +341,8 @@ export function SyllabusPage() {
           </div>
         )}
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }
 

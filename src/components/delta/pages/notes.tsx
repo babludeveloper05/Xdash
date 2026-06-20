@@ -9,6 +9,7 @@ import {
 import {
   GlassCard, Pill, PrimaryButton, GhostButton, Badge, EmptyState,
 } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore } from '@/lib/store'
 import { type NoteItem } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
@@ -112,12 +113,13 @@ export function NotesPage() {
   }
 
   return (
-    <motion.div
-      className="h-full flex flex-col gap-4"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        className="flex flex-col gap-4"
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
         <PrimaryButton onClick={openNew}>
           <Plus className="size-3.5" /> New note
@@ -207,7 +209,7 @@ export function NotesPage() {
             }
           />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 pb-1">
+          <div className="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4 gap-3 pb-1">
             {filtered.map((n) => (
               <NoteCard
                 key={n.id}
@@ -225,7 +227,8 @@ export function NotesPage() {
       {editingId && (
         <EditorModal draft={draft} onChange={patchDraft} onSave={saveDraft} onCancel={cancelEdit} />
       )}
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }
 

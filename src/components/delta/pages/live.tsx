@@ -10,6 +10,7 @@ import {
   GlassCard, PrimaryButton, GhostButton,
   IconButton, Avatar, EmptyState, Divider, Badge,
 } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore } from '@/lib/store'
 import { liveSessions } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
@@ -47,7 +48,8 @@ export function LivePage() {
   const reduce = useReducedMotion() ?? false
 
   return (
-    <div className="h-full flex flex-col gap-4">
+    <ScaledPage>
+      <div className="flex flex-col gap-4">
       <div className="flex items-center justify-end gap-2 px-5 pt-5">
         {live ? (
           <div
@@ -57,7 +59,7 @@ export function LivePage() {
           >
             <span className="size-1.5 rounded-full bg-red-400 live-dot" aria-hidden />
             <span className="tabular">{live.viewers.toLocaleString()}</span>
-            <span className="hidden sm:inline">watching</span>
+            <span className="hidden @sm:inline">watching</span>
           </div>
         ) : (
           <Badge tone="default">No live session</Badge>
@@ -81,7 +83,7 @@ export function LivePage() {
                 aria-hidden
               />
               <div className="absolute inset-0 dot-grid opacity-25" aria-hidden />
-              <div className="relative p-5 sm:p-6 flex flex-col gap-5">
+              <div className="relative p-5 @sm:p-6 flex flex-col gap-5">
                 {/* Top row */}
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-2">
@@ -92,7 +94,7 @@ export function LivePage() {
                     <span className="rounded-full bg-black/35 backdrop-blur px-2.5 py-1 text-[11px] text-white/90 flex items-center gap-1.5">
                       <Users className="size-3" />
                       <span className="tabular">{live.viewers.toLocaleString()}</span>
-                      <span className="hidden sm:inline">watching</span>
+                      <span className="hidden @sm:inline">watching</span>
                     </span>
                   </div>
                   <span className="text-[11px] text-white/65 flex items-center gap-1.5">
@@ -102,7 +104,7 @@ export function LivePage() {
                 </div>
 
                 {/* Main */}
-                <div className="flex flex-col lg:flex-row gap-5 lg:items-end">
+                <div className="flex flex-col @lg:flex-row gap-5 @lg:items-end">
                   <div className="flex-1 min-w-0">
                     <span
                       className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold uppercase tracking-wide border"
@@ -114,7 +116,7 @@ export function LivePage() {
                     >
                       {live.subject}
                     </span>
-                    <h2 className="mt-3 text-xl sm:text-2xl font-light tracking-tight text-white text-balance leading-tight">
+                    <h2 className="mt-3 text-xl @sm:text-2xl font-light tracking-tight text-white text-balance leading-tight">
                       {live.topic}
                     </h2>
                     <div className="mt-3 flex items-center gap-2.5">
@@ -171,7 +173,7 @@ export function LivePage() {
                   </span>
                 </h3>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 @sm:grid-cols-2 @xl:grid-cols-3 gap-3">
                 {upcoming.map((s) => {
                   const glow = glowFor(s.subject)
                   const isReminder = !!reminders[s.id]
@@ -277,6 +279,7 @@ export function LivePage() {
       </div>
 
       <style>{`@keyframes liveSweep{0%{transform:translateX(-100%)}100%{transform:translateX(400%)}}`}</style>
-    </div>
+      </div>
+    </ScaledPage>
   )
 }

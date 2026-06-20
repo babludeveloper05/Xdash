@@ -11,6 +11,7 @@ import type { LucideIcon } from 'lucide-react'
 import {
   GlassCard, Pill, Segmented, EmptyState,
 } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore } from '@/lib/store'
 import {
   SUBJECTS, chapters, videos, fmtDuration,
@@ -227,7 +228,7 @@ export function LibraryPage() {
   const subtitle = `${videos.length} lectures · ${totalContentHours}h of content · ${completedCount} completed`
 
   return (
-    <div className="h-full overflow-y-auto scroll-thin">
+    <ScaledPage>
       <motion.div
         className="flex flex-col gap-5 px-5 py-5 max-w-[1600px] mx-auto"
         variants={staggerContainer(reduce)}
@@ -367,7 +368,7 @@ export function LibraryPage() {
               />
             </GlassCard>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 mt-3 pb-6">
+            <div className="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4 gap-4 mt-3 pb-6">
               {filtered.map((v) => (
                 <VideoCard key={v.id} video={v} onOpen={() => openTheater(v.id)} />
               ))}
@@ -375,6 +376,6 @@ export function LibraryPage() {
           )}
         </motion.div>
       </motion.div>
-    </div>
+    </ScaledPage>
   )
 }

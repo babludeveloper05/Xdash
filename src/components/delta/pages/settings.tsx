@@ -9,6 +9,7 @@ import {
 import {
   GlassCard, Toggle, Avatar, PrimaryButton, GhostButton, Badge,
 } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore, type UserProfile } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -74,12 +75,12 @@ export function SettingsPage() {
   }
 
   return (
-    <motion.div
-      className="h-full overflow-y-auto scroll-thin"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
         {savedFlash ? (
           <span className="inline-flex items-center gap-1.5 text-xs text-success animate-in fade-in duration-200">
@@ -104,7 +105,7 @@ export function SettingsPage() {
               </p>
             </div>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 @sm:grid-cols-2 gap-3">
             <Field
               label="Display name"
               value={draft.name}
@@ -129,14 +130,14 @@ export function SettingsPage() {
               label="Location"
               value={draft.location}
               onChange={(v) => setDraft((d) => ({ ...d, location: v }))}
-              className="sm:col-span-2"
+              className="@sm:col-span-2"
             />
             <Field
               label="Bio"
               textarea
               value={draft.bio}
               onChange={(v) => setDraft((d) => ({ ...d, bio: v }))}
-              className="sm:col-span-2"
+              className="@sm:col-span-2"
             />
           </div>
           <div className="flex justify-end mt-4">
@@ -207,7 +208,7 @@ export function SettingsPage() {
                 type="date"
                 defaultValue={customCountdownDate}
                 onChange={(e) => { setCountdown(countdownLabel, e.target.value); flash() }}
-                className="mt-1 w-full sm:w-auto rounded-lg bg-white/5 border border-border px-3 py-2 text-sm outline-none focus:border-primary/40 transition-colors [color-scheme:dark]"
+                className="mt-1 w-full @sm:w-auto rounded-lg bg-white/5 border border-border px-3 py-2 text-sm outline-none focus:border-primary/40 transition-colors [color-scheme:dark]"
               />
             </div>
             <div className="flex items-center gap-3 rounded-xl bg-primary/[0.06] border border-primary/15 p-3">
@@ -349,7 +350,8 @@ export function SettingsPage() {
           </div>
         </SectionCard>
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }
 

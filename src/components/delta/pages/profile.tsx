@@ -10,6 +10,7 @@ import { motion, useReducedMotion } from 'framer-motion'
 import {
   GlassCard, ProgressRing, Avatar, GhostButton,
 } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore, useSubjectProgress, useTotalHours } from '@/lib/store'
 import {
   achievements, activity, leaderboard, SUBJECTS,
@@ -64,12 +65,12 @@ export function ProfilePage() {
   const testsTaken = history.length
 
   return (
-    <motion.div
-      className="h-full overflow-y-auto scroll-thin"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
         <GhostButton onClick={() => setTab('settings')}>
           <Pencil className="size-3.5" /> Edit profile
@@ -78,7 +79,7 @@ export function ProfilePage() {
 
       <motion.div
         variants={staggerContainer(reduce)}
-        className="px-5 pb-6 grid grid-cols-1 lg:grid-cols-2 gap-5 items-start"
+        className="px-5 pb-6 grid grid-cols-1 @lg:grid-cols-2 gap-5 items-start"
       >
         {/* LEFT: hero + stats + achievements preview */}
         <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex flex-col gap-5 min-w-0">
@@ -131,7 +132,8 @@ export function ProfilePage() {
           <RecentActivity />
         </motion.div>
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }
 
@@ -274,7 +276,7 @@ function SubjectMastery({
           <span className="text-[10px] tabular font-medium">{Math.round(avg * 100)}%</span>
         </ProgressRing>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 @sm:grid-cols-3 gap-3">
         {subjects.map((s) => {
           const v = subjectProgress[s.id] ?? 0
           const Icon = SUBJECT_ICON[s.icon] ?? Atom

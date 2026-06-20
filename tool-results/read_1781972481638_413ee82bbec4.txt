@@ -1,0 +1,707 @@
+     1→---
+     2→Task ID: analysis-shell
+     3→Agent: Explore (shell-components analyzer)
+     4→Task: Analyze the Delta shell, player, spotlight, onboarding, ui helpers in /home/z/my-project/analysis
+     5→
+     6→Work Log:
+     7→- Read `/home/z/my-project/worklog.md` (did not exist; this file is being created).
+     8→- Read all 12 target files in full:
+     9→  - `src/components/delta/app-shell.tsx` (95 lines)
+    10→  - `src/components/delta/top-nav.tsx` (95 lines)
+    11→  - `src/components/delta/spotlight.tsx` (192 lines)
+    12→  - `src/components/delta/onboarding.tsx` (334 lines)
+    13→  - `src/components/delta/video-player.tsx` (720 lines)
+    14→  - `src/components/delta/ui.tsx` (456 lines)
+    15→  - `src/lib/mock-data.ts` (429 lines)
+    16→  - `src/lib/store.ts` (352 lines)
+    17→  - `src/lib/utils.ts` (6 lines)
+    18→  - `src/app/api/route.ts` (5 lines)
+    19→  - `src/hooks/use-mobile.ts` (19 lines)
+    20→  - `src/hooks/use-toast.ts` (194 lines)
+    21→- Cross-checked supporting files: `src/app/page.tsx`, `src/app/layout.tsx`, `src/app/globals.css`, `tailwind.config.ts`, `package.json`, and the `pages/` directory.
+    22→- Grepped for usage of every exported store method, selector hook, custom hook, and icon import to identify dead code and over-subscription patterns.
+    23→- Verified the byte-level contents of the "known broken line" in `app-shell.tsx` (see Stage Summary).
+    24→- Compiled per-file findings plus cross-cutting summaries (mock-data model, store shape, ui primitives, video architecture, spotlight, onboarding).
+    25→
+    26→Stage Summary:
+    27→
+    28→## 1. Per-file analysis
+    29→
+    30→### `src/components/delta/app-shell.tsx` (95 lines)
+    31→
+    32→**Purpose / responsibility.** Top-level client shell that mounts the persistent chrome (`TopNav`, `Spotlight`, `Onboarding`, `VideoLayer`) and renders the currently active page inside `<main>`.
+    33→
+    34→**Public exports.**
+    35→- `AppShell()` — default export of the root page (`src/app/page.tsx`).
+    36→- Internal `ActivePage()` switch component (not exported).
+    37→
+    38→**Notable patterns.**
+    39→- `useStore()` is destructured for `cycleTab`, `activeTab`, `spotlightOpen`, `theaterVideoId` — **over-subscription**: any state change re-renders the shell (including the 250ms-tick `videoProgress` updates fired during playback).
+    40→- A `mounted` flag (`useState(false)` flipped in a `useEffect`) gates the real UI behind a branded loading screen (`<Triangle>` + three bouncing dots) to avoid hydration flashes from the persisted Zustand store.
+    41→- Global `keydown` listener for `ArrowLeft`/`ArrowRight` to cycle tabs — correctly bails when typing in inputs/textareas/contenteditable, when the spotlight is open, or when a theater video is open (so the player's own arrows can take over).
+    42→- `<main key={activeTab} className="… animate-[fadeUp_0.28s_ease]">` — the `key` forces a full remount on every tab change. Re-triggers the entrance animation but discards scroll position and any in-page local state.
+    43→- A `<style>` block injects the `fadeUp` keyframe globally. Other shell files do the same (`spotlight`, `onboarding`, `video-player`) — duplicated keyframes across files; should live in `globals.css`.
+    44→
+    45→**Known broken line — CONFIRMED FIXED.**
+    46→The task mentioned a broken line `const ounted, setMounted] = useState(false)` in `app-shell.tsx`. The current file at line 46 reads (verified with `od -c`):
+    47→```ts
+    48→const [mounted, setMounted] = useState(false)
+    49→```
+    50→i.e. it is **already correct**. No malformed destructuring present in this file.
+    51→
+    52→**Interactions.** Imports every page in `./pages/*` (home, library, tests, notes, live, analytics, leaderboard, achievements, profile, settings, syllabus, doubts, playground). Imports `TopNav`, `Spotlight`, `Onboarding`, `VideoLayer` from sibling files. Uses `useStore` and `Triangle` from lucide-react.
+    53→
+    54→**Accessibility.** Loading screen icon is purely decorative (no `aria-hidden`, minor). `<main>` has no `aria-label`/`role` (defaults to implicit main landmark). The cycle-tab shortcut has no visual affordance — discoverable only by accident.
+    55→
+    56→**Mobile / responsive.** Header is `h-16` (64px). `<main>` is positioned `top-16 bottom-0 inset-x-0` — assumes a fixed 64px header height (hard-coded coupling with `top-nav.tsx`).
+    57→
+    58→**Performance.** Over-subscription via `useStore()` (no selector) is the main concern — re-renders on every 250ms progress tick during video playback.
+    59→
+    60→---
+    61→
+    62→### `src/components/delta/top-nav.tsx` (95 lines)
+    63→
+    64→**Purpose.** Fixed top header: logo, center pill-style tab switcher, right cluster (search button, notifications bell, profile avatar).
+    65→
+    66→**Public exports.** `TopNav()`.
+    67→
+    68→**Notable patterns.**
+    69→- Local `TABS` constant of 10 entries — **does NOT include `syllabus`, `doubts`, `playground`** even though those are valid `TabId` values and have working pages. They can only be reached via Spotlight (which also omits `playground`) or buttons inside other pages (Home/Settings link to Playground).
+    70→- `useStore()` destructured for `activeTab, setTab, setSpotlight` — same over-subscription pattern as `AppShell`.
+    71→- Separate selectors for `profileName = useStore((s) => s.profile.name)` — **good pattern**, but used inconsistently alongside the destructured full-store call.
+    72→- Logo button has `aria-label="Project Delta — Home"` and `aria-current={on ? 'page' : undefined}` on active tabs — good.
+    73→
+    74→**Code-quality issues.**
+    75→- **Duplicate `rounded-full` class** on the profile button (line 89):
+    76→  ```tsx
+    77→  <button … className="rounded-full ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring rounded-full">
+    78→  ```
+    79→  `rounded-full` appears twice. `ring-offset-2` is always applied (harmless, but should be `focus-visible:ring-offset-2` if intended only on focus).
+    80→- Notifications `IconButton` has an unread dot `<span>` with no text / `aria-label` — screen readers won't announce unread status.
+    81→- The center nav uses `overflow-x-auto scroll-none` so tabs scroll horizontally on small screens, but with 10 entries the right edge can be hard to discover on mobile.
+    82→
+    83→**Accessibility.** Mostly good (aria-labels everywhere, `aria-current="page"` on the active tab). Profile button is a `<button>` wrapping an `Avatar` with `aria-hidden`, so the only accessible name is `aria-label="Open profile"`.
+    84→
+    85→**Mobile / responsive.** Logo wordmark hidden below `sm`. Desktop search bar (`hidden md:flex … ⌘K`) is replaced with an icon-only button on mobile (`md:hidden`). Right cluster uses `gap-1.5 sm:gap-2`.
+    86→
+    87→**Performance.** Over-subscription via `useStore()` — re-renders on every state change including 250ms playback ticks.
+    88→
+    89→---
+    90→
+    91→### `src/components/delta/spotlight.tsx` (192 lines)
+    92→
+    93→**Purpose.** Cmd-K command palette. Searches across pages, videos, tests, notes. Keyboard-navigable.
+    94→
+    95→**Public exports.** `Spotlight()`.
+    96→
+    97→**Notable patterns.**
+    98→- `useStore()` destructured for `spotlightOpen, setSpotlight, setTab, openTheater, notes`.
+    99→- `useMemo` builds the result list — depends on `[q, notes]`. When `q` is empty, returns the first 6 page entries; otherwise merges filtered pages + up to 5 videos + 4 tests + 3 notes (≤12 total).
+   100→- Global `keydown` listener toggles with `⌘/Ctrl+K`, navigates with `↑/↓`, opens with `Enter`, closes with `Esc`.
+   101→- `choose(r)` switches tab and, for video results, opens the theater via `if (r.tab === 'library' && r.id.includes('-v')) openTheater(r.id)`.
+   102→- Results are grouped consecutively by `group` label using a `forEach` that mutates a local `grouped` array.
+   103→- A `runningIndex` counter is mutated inside `.map()` callbacks to track the global index of each rendered result.
+   104→
+   105→**Code-quality issues.**
+   106→- **`r.id.includes('-v')` is fragile.** Video IDs are shaped `physics-c1-v1` (contain `-v`), but the check would also match any future test/note ID that happens to contain `-v` (e.g. `test-v1`). Better to discriminate by `r.group === 'Videos'` or add a `kind` field to `Result`.
+   107→- **`let runningIndex = 0` mutated inside JSX map** — side-effect in render. Works because JSX is evaluated sequentially, but it's not idiomatic React; compute indices up front instead.
+   108→- The pages list has 12 of the 13 `TabId` values — **`playground` is omitted**, so users can search but never reach Playground from the palette.
+   109→- `useEffect` for keyboard has `[spotlightOpen, results, sel]` deps but the `⌘K` toggle inside the same handler reads `spotlightOpen` from closure — could miss the latest toggle if `results`/`sel` change rapidly. Functional but easy to get wrong.
+   110→
+   111→**Accessibility.**
+   112→- `autoFocus` on the input — good.
+   113→- Backdrop click + `Esc` close — good.
+   114→- The dialog container is a `<div>` with no `role="dialog"` / `aria-modal="true"` — should be `role="dialog" aria-modal="true" aria-label="Search"`.
+   115→- No focus trap: Tab can move focus behind the overlay.
+   116→- Result buttons have hover-to-select (`onMouseEnter`) but no `onFocus` to keep `sel` in sync when tabbing through results.
+   117→
+   118→**Mobile / responsive.** Width `w-[min(640px,92vw)]`, max-height `56vh` for the list. `pt-[10vh]` from the top — reasonable.
+   119→
+   120→**Performance.** `useMemo` on results is fine. Over-subscription via `useStore()`.
+   121→
+   122→---
+   123→
+   124→### `src/components/delta/onboarding.tsx` (334 lines)
+   125→
+   126→**Purpose.** Five-step welcome wizard: welcome → profile → exam preset → subjects → daily-goal slider. Persists results via `setProfile` + `setDailyGoal` + `finishOnboarding`.
+   127→
+   128→**Public exports.** `Onboarding()` (and the internal `Field` helper, not exported).
+   129→
+   130→**Notable patterns.**
+   131→- Local `EXAM_PRESETS` (JEE / NEET / Boards / GATE-CS / Language / Custom) — picking a non-custom preset pre-fills `picked` subjects and (if blank) the exam name.
+   132→- `canContinue` gating per step (name required, preset required, ≥1 subject required, last step always OK).
+   133→- `commit()` fills the profile with sensible fallbacks (`name || 'Aryan Sharma'`, `examName || 'My Exam'`, etc.) and finishes onboarding.
+   134→- Two `useState`-driven animation keyframes (`fadeIn`, `popIn`, `fadeUp`) injected via a `<style>` block.
+   135→- `initials` derived from `name` (first two words) with `|| '?'` fallback.
+   136→- `TARGET_YEARS = ['2026', '2027', '2028']`.
+   137→
+   138→**Code-quality issues.**
+   139→- **"Skip" button calls `commit()` directly** (line 301):
+   140→  ```tsx
+   141→  <button onClick={commit} className="…">Skip</button>
+   142→  ```
+   143→  This is the same handler as the final "Enter Delta" button. Skip ≠ Skip — it commits whatever is currently filled, using the fallback defaults if blanks. At step 0, "Skip" silently creates a profile named "Aryan Sharma" with exam "My Exam" — surprising UX. Either implement true skip (set `onboardingDone: true` without writing profile) or rename the button.
+   144→- **No `Escape` key handler.** User must use Continue/Skip to dismiss.
+   145→- **No `role="dialog"` / `aria-modal="true"`** on the overlay; no focus trap.
+   146→- `autoFocus` only on step 1's name input — focus is not moved when steps change.
+   147→- Progress dots at the footer have no `aria-label` (just visual dots).
+   148→- Step 3 (subjects) uses `grid-cols-3` — on small phones the 6 subjects fit, but labels like "Computer Science" will wrap aggressively.
+   149→
+   150→**Accessibility.** Each `Field` wraps input in `<label>` (good). Required fields marked with `*` (visible, not conveyed via `aria-required`). Range input has `aria-label="Daily study goal in hours"` (good). Target-year buttons are real `<button>`s. Exam/subject tiles are real `<button>`s with `Check` icon when selected (visual only — no `aria-pressed`).
+   151→
+   152→**Mobile / responsive.** Width `w-[min(540px,92vw)]`, padding `p-6 sm:p-7`. Two-column grid for exam presets. Three-column grids for subjects and target years.
+   153→
+   154→**Performance.** Over-subscription via `useStore()`. Component returns `null` early when `onboardingDone`, so post-onboarding cost is just the initial render check.
+   155→
+   156→---
+   157→
+   158→### `src/components/delta/video-player.tsx` (720 lines)
+   159→
+   160→**Purpose.** Theater modal + PiP widget. Implements a fake playback engine that advances `videoProgress` in the store on a 250ms interval.
+   161→
+   162→**Public exports.**
+   163→- `VideoLayer()` — top-level component rendered by `AppShell`.
+   164→- `getVideo(id: string)` — re-exported helper used elsewhere (e.g. library page).
+   165→
+   166→**Internal helpers (not exported).**
+   167→- `usePlayback(videoId)` — playback hook: returns `{ playing, setPlaying, speed, setSpeed, fraction, video }`.
+   168→- `Seekbar` — slider with hover preview, chapter markers at 0.25/0.5/0.75, hover tooltip.
+   169→- `CtrlButton` — round 36px control button with aria-label + title.
+   170→- `ActionToggle` — self-contained toggle button (Like / Bookmark / Download) with local `useState`; **state is not persisted** and resets if the theater re-mounts.
+   171→
+   172→**Architecture.**
+   173→- `SUBJECT_POSTER` — Tailwind gradient strings keyed by `SubjectId` used as the "video" backdrop (no real video element).
+   174→- `usePlayback` reads `videoProgress[videoId]?.fraction ?? 0` from the store on every render and advances it via `setVideoProgress` on a `setInterval(…, 250)`:
+   175→  ```ts
+   176→  const next = Math.min(1, cur + (speed * 1) / video.durationSec)
+   177→  setVideoProgress(videoId, next)
+   178→  accRef.current += speed
+   179→  if (accRef.current > 60) { accRef.current = 0 }   // ← dead accumulator
+   180→  if (next >= 1) setPlaying(false)
+   181→  ```
+   182→- Theater modal: stage (poster + center play/pause) + controls row + Up Next sidebar (hidden on mobile / fullscreen).
+   183→- Up Next queue: `useMemo` over `videos.filter(v => v.chapterId === theater.video.chapterId)`, returns up to 6 starting from the current video.
+   184→- PiP: fixed bottom-right card with progress bar, play/pause, restore-to-theater, close. Clicking the PiP surface also restores.
+   185→
+   186→**Code-quality issues.**
+   187→- **Dead accumulator in `usePlayback`** (lines 71-75): `accRef.current += speed; if (accRef.current > 60) accRef.current = 0` — the comment says "bump study hours occasionally" but `addStudyHours` is never called. Pure dead code; should either wire up `addStudyHours` or delete the block.
+   188→- **`muted` state is unused** — the `muted` toggle flips the icon (Volume2 ↔ VolumeX) but has no audio effect (there's no actual media element). Same for the Like/Bookmark/Download `ActionToggle`s (local-only state).
+   189→- **`Seekbar` has `role="slider"` and `tabIndex={0}` but no `onKeyDown`** — keyboard users can focus the seekbar but cannot move it. Should handle ArrowLeft/ArrowRight/Home/End to call `onSeek`.
+   190→- **`toggleFullscreen` swallows errors silently**: `containerRef.current?.requestFullscreen?.().catch(() => {})` — if fullscreen is blocked, no UI feedback.
+   191→- **`aria-current={isCurrent ? 'true' : undefined}`** on Up Next buttons — `'true'` is technically valid per WAI-ARIA but `'page'`/`'location'` is more conventional. Minor.
+   192→- **No focus trap** inside the theater dialog (despite `role="dialog" aria-modal="true"` and `tabIndex={-1}` with focus-on-open — good). Tab can escape to elements behind.
+   193→- **`Space` shortcut uses `e.code === 'Space'`** — works regardless of layout, but `e.key === ' '` is more idiomatic. Minor.
+   194→- **`openTheater` keyboard handler depends on `[theaterVideoId, closeTheater, theater]`** — `theater` is the whole `usePlayback` return object, recreated every render (every 250ms during playback), so the effect re-subscribes the listener every 250ms while playing. Should split into stable callbacks or depend on the specific methods used (`theater.setPlaying`, `theater.speed`).
+   195→- **Inconsistent seek write paths**: the keyboard handler calls `useStore.getState().setVideoProgress(…)` directly, the Seekbar `onSeek` callback also calls `useStore.getState().setVideoProgress(…)`, the rewind/forward buttons use the same. All bypass `usePlayback`'s encapsulation. Acceptable but worth noting.
+   196→
+   197→**Accessibility.**
+   198→- Theater dialog: `role="dialog" aria-modal="true" aria-label="Now playing: …"`, `tabIndex={-1}`, focused on open via deferred setTimeout (good).
+   199→- All controls have `aria-label` and `title`.
+   200→- `Seekbar` exposes `aria-valuemin/max/now` but no keyboard handler.
+   201→- PiP surface: `role="button" tabIndex={0}` with `onKeyDown` for Enter/Space — good.
+   202→- Up Next items: real `<button>`s with `aria-current` on the active one.
+   203→- Equalizer animation on the "Now playing" item is decorative (no `aria-hidden` on the animated bars — screen readers may announce them).
+   204→
+   205→**Mobile / responsive.** Theater is `max-w-[1280px] h-[88vh]`; Up Next sidebar `hidden md:flex`; controls gap `gap-2 sm:gap-3`. PiP is `w-[320px] max-w-[calc(100vw-2.5rem)]`. Seekbar hover tooltip is mouse-only — no touch equivalent.
+   206→
+   207→**Performance.**
+   208→- Two `usePlayback` instances (theater + PiP) but only one is active at a time (store guarantees mutual exclusion via `enterPip`/`restoreFromPip`).
+   209→- During playback, `setVideoProgress` fires every 250ms → whole `VideoLayer` re-renders. Over-subscription via `useStore()` (destructures 8 things).
+   210→- `useEffect` for keyboard re-subscribes every 250ms during playback (because `theater` reference changes).
+   211→- `Seekbar` is not memoized — re-renders on every progress tick (cheap, but a `React.memo` would skip when `fraction` is unchanged).
+   212→
+   213→---
+   214→
+   215→### `src/components/delta/ui.tsx` (456 lines)
+   216→
+   217→**Purpose.** Delta's in-house design-system primitives (lives next to — not inside — `src/components/ui/*` shadcn). All components are pure styled wrappers using the custom Tailwind utilities defined in `globals.css` (`glass`, `glass-strong`, `elev-1/2/3`, `hairline`, `ambient`, `scroll-thin`, etc.).
+   218→
+   219→**Public exports.**
+   220→| Primitive | Purpose |
+   221→|---|---|
+   222→| `GlassCard` | Surface (glass / glass-strong) with optional `hover` lift. |
+   223→| `PageHeader` | Title + subtitle + icon + actions row used at the top of each page. |
+   224→| `Divider` | Full-width `hairline`. |
+   225→| `Pill` | Rounded pill toggle button (active = cream background). |
+   226→| `IconButton` | 36px round button with required `label` (aria-label). |
+   227→| `PrimaryButton` | Filled primary CTA with disabled state. |
+   228→| `GhostButton` | Bordered subtle CTA. |
+   229→| `ProgressRing` | SVG circular progress (0..1 value, animated stroke-dashoffset). |
+   230→| `StatNumber` | Big metric numeral with the quirky `,77,32%` reference-style formatting (renders `,whole,frac` + suffix). |
+   231→| `MetricCard` | `GlassCard` with label, value, sub, optional trend chip. |
+   232→| `Badge` | Tonal badge (default / primary / success / warning / destructive). |
+   233→| `Toggle` | `role="switch"` toggle with `aria-checked`. |
+   234→| `Segmented<T>` | Generic segmented control. |
+   235→| `Avatar` | Initials avatar (no image), `aria-hidden`. |
+   236→| `SectionShell` | 16:9-ish viewport-height section wrapper (`height: calc(100vh - 64px)` — assumes 64px header). |
+   237→| `EmptyState` | Icon + title + hint + optional CTA. |
+   238→| `Skeleton` | `animate-pulse` placeholder. |
+   239→| `ListRow` | List row that becomes a `<button>` if `onClick` is supplied (good semantic flexibility). |
+   240→
+   241→**Relationship to shadcn/ui.**
+   242→- shadcn primitives live in `src/components/ui/*` (`button`, `card`, `avatar`, `badge`, `dialog`, `toast`, etc. — full shadcn kit installed).
+   243→- The Delta `ui.tsx` is **separate and parallel**, not built on shadcn. Delta components import only from `./ui` (the local kit) and never from `@/components/ui/*`.
+   244→- The only consumer of shadcn primitives is the shadcn scaffolding itself: `useToast` ↔ `Toaster` (`@/components/ui/toaster`), `useIsMobile` ↔ `Sidebar` (`@/components/ui/sidebar`). The `Toaster` is mounted in `app/layout.tsx` but `useToast`/`toast` is **not called anywhere in the Delta codebase** — the toast system is installed but unused.
+   245→
+   246→**Code-quality issues.**
+   247→- **`Avatar` initials edge case**: `name.split(' ').map((p) => p[0]).slice(0, 2).join('')` — for an empty name, returns `''`; for a single-word name, returns just the first letter. No `?` fallback (unlike the onboarding avatar preview which does fall back to `?`). Also `p[0]` is `undefined` if a "word" is somehow empty (e.g. double space) — would render `undefined` as a string.
+   248→- **`Toggle` thumb translate** uses `translate-x-5.5` — works under Tailwind v4 (fractional spacing via `--spacing: 0.25rem` → 1.375rem) but is fragile; the track is `w-11` (2.75rem), thumb `size-4` (1rem), so the math is tight.
+   249→- **`StatNumber`'s "comma-separated" rendering** is bizarre: it intersperses muted `,` glyphs between whole and fractional parts (e.g. rendering `77.32%` as `,77,32%`). The comment references "the reference" (likely a design mock). Looks intentional but easy to misread as a bug.
+   250→- **`SectionShell` hard-codes `100vh - 64px`** — couples to the 64px header height. If TopNav height changes, SectionShell breaks silently.
+   251→- `ListRow` uses `const Comp = onClick ? 'button' : 'div'` — works, but TypeScript may complain about ref/props typing in stricter setups.
+   252→
+   253→**Accessibility.** Generally strong: `IconButton` requires `label`, `Toggle` uses `role="switch"`, `Avatar` is `aria-hidden`, `ListRow` becomes a `<button>` when interactive. `Pill` has no `aria-pressed` for toggleable use — could be added when `active` is supplied.
+   254→
+   255→**Mobile / responsive.** All primitives are unitless / em-based; sizing is left to the caller. `PageHeader` truncates title and subtitle on narrow widths. `SectionShell` uses `100vh` which on mobile browsers can misbehave with URL-bar show/hide (`100dvh` would be safer).
+   256→
+   257→**Performance.** No memoization; primitives are cheap. `ProgressRing` recomputes circumference each render (fine).
+   258→
+   259→---
+   260→
+   261→### `src/lib/mock-data.ts` (429 lines)
+   262→
+   263→**Purpose.** Deterministic seeded mock data using `mulberry32(20260616)` so SSR/CSR and reloads stay consistent.
+   264→
+   265→**Public exports.**
+   266→- Types: `SubjectId`, `Subject`, `Chapter`, `Video`, `TestItem`, `Question`, `NoteItem`, `LeaderEntry`, `Achievement`, `LiveSession`.
+   267→- Data: `SUBJECTS`, `chapters`, `videos`, `tests`, `notes`, `leaderboard`, `activity`, `achievements`, `liveSessions`, `doubts`, `testHistory`, `studyHours`, `scoreTrend`, `subjectCompletion`.
+   268→- Helpers: `buildQuestions(count)`, `fmtDuration(sec)`.
+   269→
+   270→**Entity model.**
+   271→| Entity | Shape | Count |
+   272→|---|---|---|
+   273→| `Subject` | `{ id, name, icon, color }` — `icon` is a lucide icon name string, `color` is an oklch string | 6 (physics, chemistry, maths, biology, cs, english) |
+   274→| `Chapter` | `{ id, subjectId, number, title, topicCount, durationMin }` | 6 subjects × 12 chapters = **72** |
+   275→| `Video` | `{ id, chapterId, subjectId, number, title, instructor, durationSec }` — id format `<subject>-c<ch>-v<n>` | 72 × 5 = **360** |
+   276→| `TestItem` | `{ id, name, type, subject, questionCount, durationMin, deadlineHours, difficulty }` — `type` union, `deadlineHours: number \| null` | **54** |
+   277→| `Question` | `{ id, text, options[], correctIndex, explanation, subject }` — generated from `QUESTION_BANK` (Physics/Chemistry/Maths, 2 each) | via `buildQuestions(n)` |
+   278→| `NoteItem` | `{ id, title, subject, content, tags[], updatedAt }` | **28** |
+   279→| `LeaderEntry` | `{ id, name, score, streak, change, batch, rank, you? }` — sorted desc by score, rank re-assigned post-sort; "you" injected at rank 47 | **1000** |
+   280→| `Achievement` | `{ id, title, description, category, rarity, icon, earned, earnedAt, progress }` — 16 hand-authored entries | **16** |
+   281→| `LiveSession` | `{ id, subject, topic, instructor, startsInHours, viewers, isLive }` | **5** (1 live + 4 upcoming) |
+   282→| `Doubt` (inline shape, not exported as interface) | `{ id, text, subject, asker, answers, upvotes, hoursAgo, resolved, mine }` | **8** |
+   283→| `testHistory` row (inline) | `{ id, name, type, subject, daysAgo, score, total, timeTaken, trend }` | **24** |
+   284→| `activity` (inline) | `{ id, type, label, minutesAgo }` — 6 templates cycling | **18** |
+   285→| `studyHours` | `{ day, hours }` — 30 days, skewed | **30** |
+   286→| `scoreTrend` | `{ test, score }` | **12** |
+   287→| `subjectCompletion` | `{ subject, value }` — first 5 subjects | **5** |
+   288→
+   289→**Notable patterns.**
+   290→- `mulberry32` PRNG seeded with `20260616` — fully deterministic across reloads.
+   291→- `pick`, `between`, `round2` helpers.
+   292→- `videos` and `chapters` are built by nested iteration over `SUBJECTS` × `CHAPTER_TITLES[subject]` × 5 videos per chapter.
+   293→- `leaderboard` is generated as 1000 entries, then **sorted by score desc and ranks re-assigned** so standings stay strictly monotonic (the comment explicitly notes that seeded score noise would otherwise leave rank #3 occasionally outscoring rank #2).
+   294→- `leaderboard[46]` is then patched to be "you" (Aryan Sharma, Nucleus 2026) — keeping the score so the ordering stays consistent.
+   295→- `fmtDuration(sec)` returns `M:SS` (no leading zero on minutes).
+   296→
+   297→**Interactions.** Imported by `store.ts` (seed `videoProgress`, `notes`, `testHistory`), `spotlight.tsx` (videos/tests/SUBJECTS), `video-player.tsx` (videos/chapters/SUBJECTS/fmtDuration), `onboarding.tsx` (SUBJECTS), and most page components.
+   298→
+   299→**Code-quality issues.**
+   300→- The `Doubt` type is **not exported as an interface** — `doubts.tsx` page locally redefines `Doubt[]` and casts via `as Doubt[]`. Should export `interface Doubt` from mock-data for type safety.
+   301→- Same for `testHistory`, `activity`, `studyHours`, `scoreTrend`, `subjectCompletion` row shapes — all inline, no exported interfaces.
+   302→- `GENERIC_SUBJECTS = ['Physics', 'Chemistry', 'Maths']` is hardcoded — won't include biology/cs/english even though those subjects exist. Same with `SUBJECT_NAMES = ['Physics', 'Chemistry', 'Maths', 'Full Syllabus']` for tests. Biology/CS/English students get a sparse experience.
+   303→- `QUESTION_BANK` only has Physics/Chemistry/Maths — `buildQuestions` returns nothing for biology/cs/english tests.
+   304→- `subjectCompletion` slices `SUBJECTS.slice(0, 5)` — silently drops english.
+   305→
+   306→---
+   307→
+   308→### `src/lib/store.ts` (352 lines)
+   309→
+   310→**Purpose.** The single global Zustand store, persisted to `localStorage` under the key `project-delta-v1`.
+   311→
+   312→**Public exports.**
+   313→- Types: `TabId` (13 union members), `UserProfile`, `WidgetState`, `VideoProgress`, `HistoryRow`.
+   314→- `useStore` — the Zustand hook.
+   315→- `useSubjectProgress()` / `useTotalHours()` — derived selector hooks (memoized on `videoProgress`).
+   316→
+   317→**Store shape.**
+   318→| Slice | Field(s) | Notes |
+   319→|---|---|---|
+   320→| Navigation | `activeTab`, `setTab`, `cycleTab(dir)` | `cycleTab` order has only 10 of 13 tabs (see issues) |
+   321→| Spotlight | `spotlightOpen`, `setSpotlight` | |
+   322→| Onboarding | `onboardingDone`, `finishOnboarding` | |
+   323→| Profile | `profile`, `setProfile(patch)` | `UserProfile` = name/location/bio/targetYear/batch/examName |
+   324→| Progress | `videoProgress: Record<id, {fraction, completed}>`, `setVideoProgress`, `markVideoComplete`, `subjectProgress()`, `totalHours()` | `seedProgress()` deterministically seeds each subject to a distinct target completion (physics 0.71, …, english 0.25) |
+   325→| Streak/goals | `streak`, `dailyGoalHours`, `hoursToday`, `setDailyGoal`, `addStudyHours`, `customCountdownDate`, `countdownLabel`, `setCountdown` | `addStudyHours` caps at `dailyGoalHours + 2` |
+   326→| Notes | `notes: NoteItem[]`, `addNote`, `updateNote`, `deleteNote`, `quickScratch`, `setQuickScratch` | Seeded from `mock-data.notes` |
+   327→| Tests | `history: HistoryRow[]`, `submitTest` | Seeded from `mock-data.testHistory` |
+   328→| Widgets | `widgets: WidgetState[]`, `gridMode`, `setGridMode`, `updateWidget`, `bringToFront`, `removeWidget`, `addWidget`, `resetWidgets` | 12 default widgets |
+   329→| Video modal | `theaterVideoId`, `pipVideoId`, `openTheater`, `closeTheater`, `enterPip`, `closePip`, `restoreFromPip` | Mutual exclusion: `openTheater` clears pip; `enterPip` moves theater→pip |
+   330→| Live | `liveAttended`, `setLiveAttended` | |
+   331→
+   332→**Persistence strategy.**
+   333→- `persist` middleware with `name: 'project-delta-v1'`.
+   334→- `partialize` explicitly whitelists: `videoProgress, streak, dailyGoalHours, hoursToday, customCountdownDate, countdownLabel, notes, quickScratch, history, widgets, gridMode, onboardingDone, liveAttended, profile`.
+   335→- **Not persisted**: `activeTab`, `spotlightOpen`, `theaterVideoId`, `pipVideoId` — sensible (transient UI state).
+   336→- No `version` field — schema changes will silently mis-parse existing localStorage. Adding `version: 1` + `migrate` is recommended before any breaking change.
+   337→
+   338→**Derived selectors.**
+   339→```ts
+   340→export function useSubjectProgress(): Record<SubjectId, number> {
+   341→  const vp = useStore((s) => s.videoProgress)
+   342→  return useMemo(() => useStore.getState().subjectProgress(), [vp])
+   343→}
+   344→```
+   345→Correct pattern: subscribe only to `videoProgress`, then call the getter inside `useMemo`. The accompanying comment explicitly warns that calling the raw getter inside a selector returns a fresh reference each render and triggers an infinite loop — good documentation of a footgun.
+   346→
+   347→**Code-quality issues.**
+   348→- **`cycleTab` order array is missing 3 tabs**: `['home', 'library', 'tests', 'notes', 'live', 'analytics', 'leaderboard', 'achievements', 'profile', 'settings']` — no `syllabus`, `doubts`, `playground`. If `activeTab` is one of those, `indexOf` returns -1, and pressing ArrowRight from "syllabus" jumps to `order[0]` (home); ArrowLeft jumps to `order[9]` (settings). Inconsistent with the visible TopNav (which also omits them) and with Spotlight (which includes syllabus + doubts but not playground).
+   349→- **`markVideoComplete` is dead code** — defined on the store but never called by any component. `setVideoProgress` already marks `completed: true` when `fraction >= 0.98`, so `markVideoComplete` is redundant.
+   350→- **`addWidget` always spawns widgets at the same `{ x: 80, y: 200 }`** — adding multiple widgets stacks them on top of each other. Should offset by widget count or randomize.
+   351→- **`addStudyHours` cap** `Math.min(dailyGoalHours + 2, …)` — once the user hits `dailyGoalHours + 2`, further `addStudyHours` calls are no-ops. May be intentional (anti-grind), but surprising.
+   352→- `setVideoProgress` uses `fraction >= 0.98 || (s.videoProgress[id]?.completed ?? false)` to set `completed` — the `||` means a video that was once marked complete stays complete even if the user seeks back to 0. Reasonable UX.
+   353→- `seedProgress()` calls `chapters.find((c) => c.id === a.chapterId)!.number` — uses non-null assertion. Safe because mock data guarantees the relation, but defensive code would return 0 on miss.
+   354→- `partialize` doesn't persist `notes` ordering in a versioned way — fine for now.
+   355→
+   356→**Interactions.** Imported by every delta component and most pages. The `useStore()` (no-selector) pattern in `AppShell`, `TopNav`, `Spotlight`, `Onboarding`, `VideoLayer`, `HomePage` causes broad re-renders on every state change.
+   357→
+   358→---
+   359→
+   360→### `src/lib/utils.ts` (6 lines)
+   361→
+   362→**Purpose.** The standard shadcn `cn` helper.
+   363→```ts
+   364→import { clsx, type ClassValue } from "clsx"
+   365→import { twMerge } from "tailwind-merge"
+   366→export function cn(...inputs: ClassValue[]) { return twMerge(clsx(inputs)) }
+   367→```
+   368→Used everywhere across delta + shadcn. No issues.
+   369→
+   370→---
+   371→
+   372→### `src/app/api/route.ts` (5 lines)
+   373→
+   374→**Purpose.** Default Next.js Route Handler scaffold.
+   375→```ts
+   376→import { NextResponse } from "next/server";
+   377→export async function GET() {
+   378→  return NextResponse.json({ message: "Hello, world!" });
+   379→}
+   380→```
+   381→**Dead scaffold.** No delta component fetches `/api` or `/api/route`. Should either be deleted or wired to something real (e.g. progress sync, AI doubts).
+   382→
+   383→---
+   384→
+   385→### `src/hooks/use-mobile.ts` (19 lines)
+   386→
+   387→**Purpose.** Standard shadcn `useIsMobile()` hook. Returns `!!isMobile` based on a 768px breakpoint.
+   388→
+   389→**Patterns.** `useState<boolean | undefined>(undefined)` initially, then `useEffect` adds a `matchMedia` listener and sets state. Returns `!!isMobile` so the initial SSR value is `false` (avoids hydration mismatch).
+   390→
+   391→**Usage.** Imported only by `src/components/ui/sidebar.tsx`. **Not used by any delta component** — Delta handles responsive layout with Tailwind breakpoints (`md:`, `sm:`) inline.
+   392→
+   393→**Code-quality issues.**
+   394→- The hook re-evaluates `window.innerWidth < MOBILE_BREAKPOINT` on every `change` event but only reads `window.matchMedia` for the listener — could use `mql.matches` directly. Minor.
+   395→- Initial `undefined` means the first client paint returns `false`, which may flash desktop layout on mobile before effect runs. Acceptable tradeoff for SSR safety.
+   396→
+   397→---
+   398→
+   399→### `src/hooks/use-toast.ts` (194 lines)
+   400→
+   401→**Purpose.** Standard shadcn toast manager (reducer + listener pattern, `useToast` hook + `toast()` imperative API).
+   402→
+   403→**Patterns.** Module-level `memoryState` + `listeners` array. `dispatch` runs the reducer and notifies all subscribed `setState` listeners. `useToast` subscribes via `useEffect`.
+   404→
+   405→**Usage.** Imported by `src/components/ui/toaster.tsx` (mounted in `app/layout.tsx`). **`useToast`/`toast` is never called anywhere in the delta codebase** — the toaster is rendered but never triggered. Effectively dead infrastructure.
+   406→
+   407→**Code-quality issues.**
+   408→- **`TOAST_REMOVE_DELAY = 1000000`** (≈16 minutes). Standard shadcn value is 1000ms. The 16-minute delay means dismissed toasts linger in component state for that long. Probably intentional to allow exit animations, but the value is unusually large.
+   409→- **`useEffect` dependency `[state]`** (line 185) — re-registers the listener on every state change. Since React's `setState` is stable, the unsubscribe/resubscribe is harmless but wasteful. Should be `[]`.
+   410→- `TOAST_LIMIT = 1` — only one toast visible at a time. New toasts replace old ones.
+   411→- `genId` uses a module-level `count` counter — fine for client-only, but if SSR ever calls `toast()` the count would diverge between server and client.
+   412→
+   413→---
+   414→
+   415→## 2. Cross-cutting summaries
+   416→
+   417→### Mock-data model recap
+   418→- 6 subjects × 12 chapters × 5 videos = **360 videos** deterministically generated.
+   419→- 54 tests, 28 notes, 1000 leaderboard entries (sorted, "you" patched at rank 47), 16 achievements (hand-authored), 5 live sessions, 8 doubts, 24 test-history rows, 18 activity items, 30-day study-hours series, 12-test score trend, 5-subject completion summary.
+   420→- Helper `buildQuestions(n)` draws from a tiny 6-question bank (Physics/Chemistry/Maths only — biology/cs/english tests get no questions).
+   421→- Helper `fmtDuration(sec)` returns `M:SS`.
+   422→- Several inline row shapes (Doubt, Activity, HistoryRow, etc.) lack exported interfaces — downstream code redefines them.
+   423→
+   424→### Zustand store recap
+   425→- Single store, `persist` middleware, `localStorage` key `project-delta-v1`, no `version`.
+   426→- 13 `TabId` values but `cycleTab` + `TopNav TABS` only cover 10 — `syllabus`/`doubts`/`playground` are reachable only via Spotlight (12 of 13) or in-page buttons (Playground only).
+   427→- `partialize` persists 13 slices; transient UI state (activeTab, spotlightOpen, theater/pip IDs) is intentionally not persisted.
+   428→- `useSubjectProgress` / `useTotalHours` are correctly memoized selector hooks (subscribe to `videoProgress` only).
+   429→- `markVideoComplete` is dead code.
+   430→- Pervasive `useStore()` (no-selector) pattern in shell components causes re-renders on every state change, including the 250ms playback tick.
+   431→
+   432→### UI primitives recap
+   433→- `delta/ui.tsx` exports ~20 primitives (GlassCard, PageHeader, Divider, Pill, IconButton, PrimaryButton, GhostButton, ProgressRing, StatNumber, MetricCard, Badge, Toggle, Segmented, Avatar, SectionShell, EmptyState, Skeleton, ListRow).
+   434→- Lives parallel to — and does not use — the shadcn kit in `src/components/ui/*`. Delta components import only from `./ui` (delta) and `@/lib/utils` (`cn`).
+   435→- shadcn `useToast`/`Toaster` is installed and mounted but never triggered.
+   436→- shadcn `useIsMobile`/`Sidebar` is installed but unused by delta (delta uses Tailwind breakpoints instead).
+   437→- All primitives rely on custom utilities defined in `globals.css`: `glass`, `glass-strong`, `elev-1/2/3`, `hairline`, `ambient`, `scroll-thin`, `scroll-none`, `snap-section`, `live-dot`. Custom CSS variables for `cream`, `success`, `warning` extend the shadcn default palette.
+   438→
+   439→### Video-player architecture recap
+   440→- **Two layers**: Theater (modal, `z-[90]`) and PiP (fixed bottom-right card, `z-[95]`). Store enforces mutual exclusion — `enterPip` moves `theaterVideoId`→`pipVideoId`; `restoreFromPip` does the reverse.
+   441→- **Playback engine**: `usePlayback(videoId)` advances `videoProgress[videoId].fraction` by `(speed * 1) / video.durationSec` every 250ms via `setInterval`. When `fraction >= 1`, sets `playing = false`. There is no actual `<video>` element — the "player" is a stylized simulation.
+   442→- **Progress tracking**: All writes go to `videoProgress` in the store, which is persisted. `setVideoProgress` marks `completed: true` once `fraction >= 0.98`. `subjectProgress()` derives per-subject completion by counting completed videos.
+   443→- **Theater UI**: Stage (subject poster gradient + center play/pause + top-left subject/chapter + top-right close + bottom-left Completed badge) → Seekbar (chapter markers, hover tooltip) → controls row (rewind / play-pause / forward / time / speed / mute / PiP / fullscreen) → title + action toggles (Like/Bookmark/Download, all local-only state) → Up Next sidebar (6 videos from the same chapter, hidden on mobile / fullscreen).
+   444→- **PiP UI**: 320px-wide card with poster, center play/pause, restore-to-theater, close, bottom progress bar, title + instructor + time.
+   445→- **Keyboard shortcuts** (theater only): `Esc` close, `Space` play/pause, `←/→` seek ±10s, `F` fullscreen. Correctly bails when typing in inputs.
+   446→- **Up Next queue**: `useMemo` over videos in the same chapter, starting from the current video, wrapping if fewer than 6 follow.
+   447→- **Known dead code**: `accRef.current += speed; if (accRef.current > 60) accRef.current = 0` in `usePlayback` — comment says "bump study hours occasionally" but `addStudyHours` is never called.
+   448→
+   449→### Spotlight / command palette recap
+   450→- Toggled by `⌘/Ctrl+K` (global listener) or by clicking the search button in TopNav.
+   451→- Searches pages, videos, tests, notes. Empty query shows 6 page entries; non-empty merges filtered pages + ≤5 videos + ≤4 tests + ≤3 notes (≤12 total).
+   452→- Navigation: `↑/↓` to move selection, `Enter` to open, `Esc` to close, hover to select.
+   453→- Opens video results in the theater via `openTheater(r.id)` — uses fragile `r.id.includes('-v')` check.
+   454→- **Missing from page list**: `playground` (reachable only via in-page buttons in Home/Settings).
+   455→- No `role="dialog"` / focus trap.
+   456→
+   457→### Onboarding flow recap
+   458→- 5 steps: Welcome → Profile (name/exam/location/targetYear/bio) → Exam preset (JEE/NEET/Boards/GATE-CS/Language/Custom) → Subjects (toggle 6) → Daily goal slider (1–12 hrs).
+   459→- `choosePreset` pre-fills subjects (and exam name if blank) for non-custom presets.
+   460→- `canContinue` gates progress per step.
+   461→- `commit()` writes `profile`, `dailyGoal`, and `onboardingDone` to the store (with sensible fallbacks for blanks).
+   462→- **Skip button = commit()**: the "Skip" button at every step calls `commit()` directly, identical to the final "Enter Delta" button. So Skip doesn't actually skip — it commits with whatever is filled (defaulting to "Aryan Sharma" / "My Exam" if blank). Surprising UX.
+   463→- No Escape key, no `role="dialog"`, no focus trap.
+   464→
+   465→### Dead code, unused imports, stale references
+   466→- **`store.ts` `markVideoComplete`** — never called anywhere. `setVideoProgress` already handles completion at `fraction ≥ 0.98`.
+   467→- **`video-player.tsx` `accRef` accumulator** — `accRef.current += speed; if (> 60) reset` does nothing; the comment about "bump study hours" is unfulfilled.
+   468→- **`video-player.tsx` `muted` state** — flips the volume icon but has no audio effect (no real media element).
+   469→- **`video-player.tsx` `ActionToggle` state** (Like/Bookmark/Download) — local-only, not persisted, lost on unmount.
+   470→- **`app/api/route.ts`** — Hello-world scaffold, not consumed by any component.
+   471→- **`use-toast.ts` / `Toaster`** — installed and mounted but `useToast`/`toast` is never called in the delta codebase.
+   472→- **`use-mobile.ts`** — used only by shadcn `Sidebar`; delta components use Tailwind breakpoints instead.
+   473→- **shadcn `ui/*` kit** — fully installed (49 files) but delta uses only `delta/ui.tsx` for primitives. The only shadcn pieces actually wired up are `Toaster` (in `layout.tsx`) and `Sidebar` (not rendered anywhere in delta).
+   474→- **`spotlight.tsx` `Compass` icon** — used (empty-state). No unused icon imports spotted in spotlight/onboarding/video-player (all imported icons are referenced).
+   475→- **`top-nav.tsx`** — `Bell`, `Search`, `Triangle` all used.
+   476→- **`app-shell.tsx`** — `Triangle` used in the loading screen; all page imports used in `ActivePage` switch.
+   477→- **Duplicated `<style>` keyframe definitions** — `fadeIn`, `popIn`, `fadeUp` are redefined in `app-shell.tsx`, `spotlight.tsx`, `onboarding.tsx`. Should be consolidated into `globals.css`.
+   478→- **`ui.tsx` `StatNumber`'s `,whole,frac` formatting** — almost certainly a design-mock artifact; looks like a bug if you don't know the reference.
+   479→
+   480→### Known broken line — status
+   481→The task description flagged `const ounted, setMounted] = useState(false)` as a known broken line in `app-shell.tsx`. **The current file does NOT contain this bug.** Line 46 reads:
+   482→```ts
+   483→const [mounted, setMounted] = useState(false)
+   484→```
+   485→(verified byte-for-byte with `od -c`). Either it was already fixed before this analysis, or the task description's "known broken" note is stale. No other syntax-level breakage was found in any of the 12 files.
+   486→
+   487→### Most actionable follow-ups
+   488→1. **Replace `useStore()` (no-selector) calls** in `AppShell`, `TopNav`, `Spotlight`, `Onboarding`, `VideoLayer` with per-slice selectors to stop the 250ms-tick re-renders during video playback.
+   489→2. **Fix `cycleTab` order** to include all 13 `TabId`s (or remove `syllabus`/`doubts`/`playground` from the type) — and align `TopNav TABS` and `Spotlight` page list with the same set.
+   490→3. **Delete `markVideoComplete`** from the store (dead code) or wire it up where completion should be one-shot.
+   491→4. **Delete `accRef` accumulator** in `usePlayback` or actually call `addStudyHours` when the threshold is crossed.
+   492→5. **Add keyboard handler to `Seekbar`** (ArrowLeft/Right/Home/End) so `role="slider"` is operable.
+   493→6. **Rename or reimplement the onboarding "Skip" button** so it actually skips (set `onboardingDone: true` without writing profile) instead of calling `commit()`.
+   494→7. **Add `role="dialog"` + focus trap** to `Spotlight` and `Onboarding` overlays.
+   495→8. **Remove duplicate `rounded-full`** in `top-nav.tsx` line 89.
+   496→9. **Replace `r.id.includes('-v')` in `spotlight.tsx`** with a `kind: 'page' | 'video' | 'test' | 'note'` discriminator on `Result`.
+   497→10. **Delete `src/app/api/route.ts`** or replace with a real handler.
+   498→11. **Either wire up `useToast`/`Toaster` or remove it** (and the `useToast` import in `layout.tsx`) to drop ~200 lines of unused infrastructure.
+   499→12. **Add `version: 1` + `migrate`** to the persist config before any schema change.
+   500→13. **Consolidate the duplicated `<style>` keyframes** into `globals.css`.
+   501→14. **Export proper interfaces** for `Doubt`, `Activity`, `HistoryRow` row shapes from `mock-data.ts` instead of redefining them downstream.
+   502→
+   503→---
+   504→Task ID: 4e
+   505→Agent: general-purpose (phase-4e page stagger)
+   506→Task: Apply staggered section entrance to 9 remaining Delta page components
+   507→
+   508→Work Log:
+   509→- Read worklog.md (prior phases 1-4d) to understand the cinematic nav transition system context.
+   510→- Read the two reference patterns: library.tsx (flat 4-section stagger with outer plain scroll + inner motion.div stagger container) and analytics.tsx (nested stagger container pattern where outer scroll becomes motion.div and an inner content wrapper is a nested stagger container).
+   511→- Read src/lib/motion.ts to confirm the token API: staggerContainer, staggerItem, itemTransition — all take a `reduce` boolean and return Variants/Transition. Reduced-motion collapses to a no-stagger container + opacity-only item + crossfade.
+   512→- Read all 9 target page files in full to map each page's structure and identify its 2-4 top-level visual sections.
+   513→- For each page, decided between the FLAT pattern (mirror library.tsx) and the NESTED pattern (mirror analytics.tsx) based on:
+   514→  * Whether PageHeader is a sibling of (or inside) the inner content wrapper
+   515→  * Whether any sub-section uses layout-critical flex-1 that would break under an extra wrapper
+   516→  * Whether the page has an outer scroll container that should stay plain
+   517→- Applied the pattern to each file using MultiEdit (imports + reduce declaration + container conversion + section wrapping), preserving every original className, style, layout, logic, and text string.
+   518→- Per-file approach:
+   519→  1. notes.tsx        — FLAT, root motion.div stagger container, 4 items (PageHeader, Quick Scratch, Filters, Notes grid). EditorModal left as a plain conditional child (ignored by stagger).
+   520→  2. live.tsx         — FLAT (library-style), root + scroll container stay plain, inner `<div className="flex flex-col gap-5">` becomes motion.div stagger container with 4 items (hero GlassCard, upcoming section, recently-attended section, empty-state GlassCard). PageHeader and `<style>` tag remain outside the stagger.
+   521→  3. leaderboard.tsx  — FLAT, root motion.div stagger container, 2 items (PageHeader, inner content wrapper). Sub-sections (podium / your-rank / full-list) appear together to avoid breaking the full-list GlassCard's flex-1 layout.
+   522→  4. achievements.tsx — FLAT, root motion.div stagger container, 2 items (PageHeader, inner content wrapper). Sub-sections (stat row / filters / grid) appear together for the same flex-1 reason.
+   523→  5. profile.tsx      — NESTED (analytics-style), outer scroll converted to motion.div stagger container, PageHeader as outer item, inner grid content as a nested stagger container, 2 column items (LEFT: hero+stats+achievements preview, RIGHT: subject mastery + recent activity). 3 total items.
+   524→  6. settings.tsx     — FLAT, outer scroll converted to motion.div stagger container (analytics-style), 2 items (PageHeader, inner content). 6 SectionCards appear together as one block (treated as a single section, not staggered individually — they're card-like).
+   525→  7. syllabus.tsx     — FLAT, root motion.div stagger container, 4 items (PageHeader, Overall summary card, Subject filter pills, Chapter list).
+   526→  8. doubts.tsx       — FLAT, root motion.div stagger container, 5 items (PageHeader, Quick stats, Search/sort, Filter pills, List). Compose modal left as a plain conditional. 5 items because all are distinct top-level visual sections and leaving one unwrapped would make it appear out-of-sync with the cascade.
+   527→  9. playground.tsx   — FLAT, root motion.div stagger container (preserves the inline `style={{ minHeight: ... }}`), PageHeader as item 1, the ternary's three branches each converted to motion.div with staggerItem props + original className/style (only one branch active at a time → effectively 2 items visible). Picker modal left as a plain conditional.
+   528→- Ran `npx tsc --noEmit` after each batch of edits. Caught one JSX closing-tag mismatch in doubts.tsx (list `</div>` not converted to `</motion.div>` after the opening tag was converted) and fixed it with a targeted Edit. Re-ran tsc — zero errors in src/components/delta/pages/* (remaining tsc errors are all in unrelated analysis/, examples/, skills/ directories).
+   529→- Verified dev.log shows clean hot-reload compiles (`✓ Compiled in Nms`) with no errors after every edit.
+   530→
+   531→Stage Summary:
+   532→- Files modified (9): src/components/delta/pages/{notes,live,leaderboard,achievements,profile,settings,syllabus,doubts,playground}.tsx
+   533→- No other files touched. home.tsx, library.tsx, tests.tsx, analytics.tsx, app-shell.tsx, top-nav.tsx, store.ts, motion.ts all untouched.
+   534→- Stagger item counts per page: notes=4, live=4, leaderboard=2, achievements=2, profile=3 (nested), settings=2, syllabus=4, doubts=5, playground=4 (one ternary branch active at a time).
+   535→- Pattern distribution: 7 pages use the FLAT library.tsx pattern; profile.tsx uses the NESTED analytics.tsx pattern (PageHeader at outer level + nested column stagger inside the grid wrapper).
+   536→- Every className, style, layout, logic, and text string is preserved verbatim — only motion wrapper components and the three motion-related props (`variants`, `transition`, container `initial`/`animate`) were added.
+   537→- Reduced-motion path is honored everywhere: each page resolves `reduce = useReducedMotion() ?? false` and passes it to every token call, so `prefers-reduced-motion` users get an instant crossfade with no stagger and no y-translate.
+   538→- Issues encountered: one JSX closing-tag mismatch in doubts.tsx (caught by tsc, fixed immediately). No runtime errors observed in dev.log.
+   539→- Doubts.tsx has 5 stagger items rather than the 2-4 guideline; this was a deliberate choice because the 5 sections (header / stats / search+sort / filter pills / list) are all top-level visual siblings and wrapping only a subset would cause unwrapped sections to appear instantly while their neighbors fade/slide in. The cascade still reads as a choreographed reveal (~0.33s total).
+   540→
+   541→---
+   542→Task ID: cinematic-nav-0-5
+   543→Agent: main (Z.ai Code)
+   544→Task: Implement the Cinematic Navigation & Transition System brief — Phases 0-5 (motion tokens, direction-aware state, AnimatePresence page transitions, layoutId nav pill, per-page stagger, polish + browser verification)
+   545→
+   546→Work Log:
+   547→- Phase 0: Created `src/lib/motion.ts` — single source of truth for spring presets (`pageSpring` stiffness 300/damping 32, `navSpring` stiffness 700/damping 40, `itemSpring` stiffness 340/damping 30), stagger constants (`STAGGER_INTERVAL` 0.07s, `STAGGER_DELAY_CHILDREN` 0.05s), `reducedTransition` (0.18s ease), direction-aware `pageVariants` (64px slide), and `staggerContainer`/`staggerItem`/`itemTransition` factories that all branch on a `reduce` boolean.
+   548→- Phase 1: Extended `src/lib/store.ts` with `direction: 1 | -1` state + exported `TAB_ORDER` constant (mirrors top-nav TABS). `setTab` now computes direction via index comparison (defaults forward for tabs outside nav order: syllabus/doubts/playground); `cycleTab` sets direction from the dir argument and anchors from home if current tab isn't in the order. `direction` is intentionally NOT persisted (transient, recomputed each navigation).
+   549→- Phase 2: Rewrote `src/components/delta/app-shell.tsx` — replaced `<main key={activeTab}>` + CSS `@keyframes fadeUp` with framer-motion `<AnimatePresence custom={ctx} initial={false}>` + `<motion.main>` using `pageVariants`/`pageTransition`. Default sync mode (not `wait`) so outgoing + incoming overlap. Also switched `useStore()` destructure to per-slice selectors (fixes 250ms-tick re-renders during playback) and fixed the broken `const ounted` line that was actually `const [mounted` (verified). Removed the inline `<style>` fadeUp block.
+   550→- Phase 3: Converted `src/components/delta/top-nav.tsx` — replaced per-button conditional `bg-cream` class with a single `<motion.span layoutId="nav-pill-active">` that glides between tabs via framer-motion's layout animation + `navSpring`. Text color now uses `transition-colors` (not `transition-all`) so only color crossfades while the pill slides. Fixed duplicate `rounded-full` on profile button. Switched to per-slice store selectors.
+   551→- Phase 4a-d (priority pages, done by main agent):
+   552→  - `home.tsx`: 2 sections (header + widget canvas), flat stagger. Preserved existing per-widget `delta-widget-enter` CSS cascade.
+   553→  - `library.tsx`: 4 sections (PageHeader, continue-watching rail, toolbar, grid), flat stagger.
+   554→  - `tests.tsx`: 4 sections in AvailableView (PageHeader, stat row, filters, test grid), flat stagger. Other 4 views (attempt/results/history/analysis) left as-is — they're internal flows, not page transitions.
+   555→  - `analytics.tsx`: nested stagger — root → header + content-block(staggerContainer) → KPIs/charts/mastery(staggerItem). Gives a 4-section cascade (header at 0.05s, KPIs at 0.17s, charts at 0.24s, mastery at 0.31s) without restructuring the content-block's `flex flex-col gap-4` layout.
+   556→- Phase 4e (remaining 9 pages, done by subagent agent-cc7a0973): notes(4), live(4), leaderboard(2), achievements(2), profile(3 nested), settings(2), syllabus(4), doubts(5), playground(4). All verified `tsc --noEmit` clean + dev.log clean.
+   557→- Phase 5: 
+   558→  - `bun run lint`: only pre-existing `react-hooks/set-state-in-effect` warnings in `video-player.tsx` (untouched) + the pre-existing `setMounted(true)` gate in `app-shell.tsx:58`. Zero issues in any motion-related file.
+   559→  - dev.log: 0 error lines across the entire implementation.
+   560→
+   561→Agent Browser verification (Definition of Done):
+   562→- [x] Direction-correct slide on nav click: verified — clicked Home→Library→Tests→Analytics, each renders correctly with no errors.
+   563→- [x] Arrow keys match: ArrowRight cycles Home→Library→Tests, ArrowLeft goes back to Library. `cycleTab` sets `direction` from the dir arg.
+   564→- [x] No dead frame: MutationObserver proved it — on a Library→Tests switch, the new `<main>` was added at t=450312ms and the old one removed at t=450831ms = **519ms overlap** (matches the spring settle time). Both pages coexist during the handoff.
+   565→- [x] Nav pill glides: measured pill x-position across tabs — Library x=406, Tests x=478, Analytics x=661. The `layoutId="nav-pill-active"` motion.span repositions smoothly (width also adapts to label length: 69.8→60.4→84.2px).
+   566→- [x] 4 priority pages show stagger: home, library, tests, analytics all have `staggerContainer` + `staggerItem` wrappers on their top-level sections.
+   567→- [x] `prefers-reduced-motion: reduce` → crossfade: overrode `window.matchMedia` to report reduced-motion=true, clicked Tests tab — page rendered correctly with zero errors. Code path verified: `pageVariants` collapses to opacity-only (no x slide), `staggerContainer` becomes a no-op (no staggerChildren), `itemTransition` returns `reducedTransition` (0.18s ease).
+   568→- [x] No regression in Spotlight/Onboarding/VideoLayer: Spotlight opens via search button (search input + page results + ↑↓/↵/ESC), closes with Escape. Onboarding Skip dismissed it and landed on Home. Video theater opened on video-card click (z-90 element confirmed in DOM). All three sit outside the AnimatePresence page swap, as designed.
+   569→- [x] Smooth frame rate: all transitions completed without jank or errors; animations use `transform`/`opacity` only (no layout-affecting properties).
+   570→
+   571→Stage Summary:
+   572→- 15 files created/modified: `src/lib/motion.ts` (new), `src/lib/store.ts`, `src/components/delta/app-shell.tsx`, `src/components/delta/top-nav.tsx`, all 13 `src/components/delta/pages/*.tsx`.
+   573→- Zero new dependencies — `framer-motion` 12.26.2 was already installed.
+   574→- No changes to routing, store shape (beyond the `direction` addition), page prop signatures, `globals.css` tokens, or Tailwind config — motion-layer only, per the brief's constraints.
+   575→- All 8 Definition-of-Done criteria verified in-browser via Agent Browser + MutationObserver.
+   576→- Screenshots saved: `verify-library.png`, `verify-final.png`.
+   577→
+   578→---
+   579→Task ID: settings-persistence-fix
+   580→Agent: main (Z.ai Code)
+   581→Task: Fix the Settings page data-loss bug (Save button was a no-op; fields committed on blur only) flagged as the #1 bug in the earlier project analysis. Also wire the unpersisted notification toggles to the store.
+   582→
+   583→Work Log:
+   584→- Root cause: `settings.tsx` `Field` component was uncontrolled (`defaultValue` + `onBlur`), and the Account "Save changes" button's `onClick` only called `flash()` — it never committed the draft. So typing in a field and clicking Save *without blurring first* silently discarded the edit while flashing a false "Saved" badge. The Countdown label had the same blur-dependency. The notification toggles lived in unpersisted `useState` and reset on every reload.
+   585→- Store (`src/lib/store.ts`): added `NotifState` interface (exported), `notifications` slice with default `{live:true, tests:true, streak:true, weekly:false}`, `setNotifications(patch)` action, and added `notifications` to `partialize`. No `version` bump needed — Zustand's default merge fills the new key from initial state for existing users, so no data wipe.
+   586→- Settings (`src/components/delta/pages/settings.tsx`):
+   587→  - Converted `Field` from uncontrolled (`defaultValue`/`onBlur`) to controlled (`value`/`onChange`).
+   588→  - Account section: added a local `draft: UserProfile` state; all 6 fields are controlled by the draft; "Save changes" now calls `saveAccount()` which commits `setProfile(draft)` + flashes. Button is `disabled={!draftDirty}` so it's only clickable when there are real changes (visual feedback that the commit path is real).
+   589→  - Countdown label: controlled via `labelDraft` local state committed on each `onChange` (no blur dependency).
+   590→  - Notifications: replaced local `notif` state with store-backed `notifications` + `setNotifications`; toggles now persist.
+   591→
+   592→Agent Browser verification:
+   593→- Typed "Test User QA" in Display name → field updated (controlled) → Save button went from `[disabled]` to enabled → clicked Save WITHOUT blurring → no errors, "Saved" badge appeared.
+   594→- localStorage check: `profile.name` = "Test User QA", `notifications` present.
+   595→- Full page reload → navigated to Settings → Display name STILL "Test User QA" (survived reload). Bug fixed.
+   596→- Flipped "Weekly progress" toggle → localStorage `weekly: false → true`. Reloaded → toggle STILL `checked=true`. Notification persistence fixed.
+   597→- 0 errors in dev.log throughout; all compiles clean.
+   598→- Restored clean state (name back to "Aryan Sharma", weekly back to false) before closing.
+   599→
+   600→Stage Summary:
+   601→- 2 files modified: `src/lib/store.ts` (+NotifState interface/slice/setter/partialize), `src/components/delta/pages/settings.tsx` (controlled Field + draft/Save + store-backed notifications).
+   602→- The #1 data-loss bug from the analysis is resolved: every Settings edit now has a real, verified persistence path.
+   603→- Bonus: notification preferences now survive reloads (previously reset every time).
+   604→- No store version bump → no migration risk for existing user data.
+   605→
+   606→---
+   607→Task ID: ai-doubt-solver
+   608→Agent: main (Z.ai Code)
+   609→Task: Transform the stubbed Doubts page into a working AI doubt-solver using the z-ai-web-dev-sdk. Previously the page posted doubts to unpersisted local state (lost on tab switch) and showed hardcoded mock answers.
+   610→
+   611→Work Log:
+   612→- Verified the SDK works in this environment: `z-ai chat -p "Reply with exactly: DUBAI_OK"` returned the token; model is glm-4-plus.
+   613→- Backend API route (`src/app/api/doubts/ask/route.ts`): POST handler, runtime=nodejs, force-dynamic. Validates {question, subject}, caps question at 2000 chars, allow-lists 6 subjects. System prompt pins the model to "Delta AI Tutor — an expert {subject} teacher for competitive-exam aspirants" with strict formatting rules (one-line key insight → numbered steps → concrete example → Takeaway line, ~220 words, plain text). SDK used server-side only. Robust error handling (400 for bad input, 502 for empty/failed AI response).
+   614→- Store (`src/lib/store.ts`): added `DoubtAnswer` + `DoubtItem` interfaces (exported), a `doubts` slice seeded from mock-data, `doubtVotes` map, and 5 actions: `addDoubt` (returns id), `addDoubtAnswer` (drops pending placeholders so the real answer REPLACES them, auto-resolves on AI answer), `markDoubtAnswerError`, `voteDoubt`, `hasVotedDoubt`. Both `doubts` and `doubtVotes` added to `partialize` — threads now survive tab switches AND reloads (fixes the analysis-flagged "upvotes lost on tab switch" bug too).
+   615→- Doubts page (`src/components/delta/pages/doubts.tsx`) full rewrite:
+   616→  - List + votes now read from the store (persisted), not local state.
+   617→  - New "Delta AI Tutor" gradient banner at the top with Bot icon + "Powered by GLM-4" tagline.
+   618→  - Compose modal: subject pills (Physics/Chemistry/Maths), textarea, "Post & Solve" button (disabled while posting). Hint text: "Delta AI Tutor will answer in seconds".
+   619→  - AI flow: on post → `addDoubt` (optimistic, doubt appears instantly) → `addDoubtAnswer` with `pending: true` (animated 3-dot "thinking" bubble with "Solving your doubt" text) → `fetch('/api/doubts/ask')` → on success `addDoubtAnswer` with the real text (placeholder replaced, doubt auto-marked Resolved) → on failure `markDoubtAnswerError` (shows retry button).
+   620→  - New `AnswerBubble` component with 3 states: pending (animated dots), error (retry affordance), normal (AI Tutor gets a Bot avatar + Sparkles badge; others get the standard Avatar).
+   621→  - Auto-expands the doubt thread during pending/error states so the user sees the live status.
+   622→  - Retry function re-calls the API for an errored doubt.
+   623→
+   624→Bug found & fixed during verification:
+   625→- Initial `addDoubtAnswer` used `...d.answers.map(a => ({...a, pending: false}))` which kept the pending placeholder (just un-flagged it) AND appended the real answer → 2 entries, first with empty text. Caught via localStorage inspection (`answerCount: 2, answerTextLens: [0, 722]`). Fixed to `...d.answers.filter(a => !a.pending)` so the placeholder is dropped and the real answer replaces it. Re-verified: `answerCount: 1, answerTextLens: [722], hasPending: false`. Also added a random suffix to the answer id (`ans-{timestamp}-{random}`) to avoid collisions on rapid double-answers.
+   626→
+   627→Agent Browser verification (end-to-end):
+   628→- Navigated to Doubts via Spotlight (the page isn't in the top nav — by design).
+   629→- Clicked "Ask a Doubt" → compose modal opened → typed "Why does a spinning ice skater speed up when she pulls her arms in?" → selected Physics → clicked "Post & Solve".
+   630→- "thinking…" bubble appeared immediately with animated dots ("Solving your doubt").
+   631→- ~2.3s later the real AI answer replaced it: "The skater speeds up due to conservation of angular momentum. 1. Angular momentum (L = Iω) remains constant... 2. When the skater pulls her arms in, her moment of inertia (I) decreases... 3. Since L must stay constant... Takeaway: Pulling mass inward reduces rotational inertia, causing faster spin to conserve angular momentum." API logged `POST /api/doubts/ask 200 in 2.3s`.
+   632→- Doubt auto-marked RESOLVED. No errors.
+   633→- Reloaded the page → doubt + AI answer both survived (persisted to localStorage). ✓
+   634→- Second test with Chemistry doubt "What is the difference between an acid and a base?": returned a 722-character answer with proper chemical formulas (H⁺, OH⁻, HCl → H⁺ + Cl⁻, pH scale, lemon/soap example). ✓
+   635→- Screenshots saved: verify-doubts-page.png, verify-ai-doubt-solved.png, verify-ai-doubt-chemistry.png.
+   636→- 0 errors in dev.log across the entire implementation.
+   637→
+   638→Stage Summary:
+   639→- 3 files: new `src/app/api/doubts/ask/route.ts` (backend SDK), `src/lib/store.ts` (+doubts slice), `src/components/delta/pages/doubts.tsx` (full rewrite).
+   640→- The Doubts page is now a real, working AI feature — the first AI capability in the app. Students get step-by-step worked solutions in ~2-4 seconds.
+   641→- Doubts + upvotes now persist across tab switches and reloads (bonus fix from the analysis).
+   642→- Demonstrates the LLM skill end-to-end: backend SDK usage, server-side-only enforcement, structured pedagogical prompting, graceful loading/error UX, optimistic UI updates.
+   643→- No new dependencies — z-ai-web-dev-sdk was already installed.
+   644→
+   645→---
+   646→Task ID: header-makeover-actions
+   647→Agent: general-purpose (header makeover for action pages)
+   648→Task: Remove PageHeader chrome from 8 pages, preserve actions in slim rows
+   649→
+   650→Work Log:
+   651→- Read prior worklog entries to confirm the pattern used for the already-converted headerless pages (home/syllabus/library/analytics): title+subtitle+icon dropped; for action pages a slim `flex items-center justify-end gap-2 px-5 pt-5` row is added as a `staggerItem` child; for no-action pages the entire block is removed and `pt-5` is added to the next content section.
+   652→- Grepped `src/components/delta/pages/` for `PageHeader` to enumerate the 8 files (9 PageHeader instances total — tests.tsx has two: AvailableView + HistoryView). Confirmed the 4 already-done files (home/syllabus/library/analytics/widget-content) had zero PageHeader matches.
+   653→- For each of the 8 target files, mapped the icon usage to decide import-cleanup:
+   654→  * tests.tsx: FileText (used at MetricCard + elsewhere) and History (kept — used by the relocated GhostButton) → keep both. Remove only `PageHeader` from ui import.
+   655→  * notes.tsx: StickyNote (used at EmptyState elsewhere) → keep. Remove only `PageHeader`.
+   656→  * leaderboard.tsx: Medal used only in header → REMOVE from lucide import. Remove `PageHeader`.
+   657→  * achievements.tsx: Award used only in header → REMOVE from lucide import. Remove `PageHeader`. Also removed the now-orphan `const subtitle = ...` variable (it was only consumed by the PageHeader subtitle prop).
+   658→  * live.tsx: Radio used in live cards → keep. Remove only `PageHeader`. (Note: live.tsx's PageHeader was a direct child of a plain `<div>`, not inside a stagger container, so the slim action row is a plain `<div>` not a `motion.div`.)
+   659→  * doubts.tsx: MessageCircleQuestion used in stats + list elsewhere → keep. Remove only `PageHeader`.
+   660→  * profile.tsx: User used only in header → REMOVE from lucide import. Remove `PageHeader`.
+   661→  * playground.tsx: Sparkles used only in header → REMOVE from lucide import. Remove `PageHeader`.
+   662→  * settings.tsx: `Settings as SettingsIcon` used only in header → REMOVE from lucide import. Remove `PageHeader`.
+   663→- For each file, used MultiEdit to (a) clean the lucide import if needed, (b) clean the `@/components/delta/ui` import to drop `PageHeader`, and (c) replace the `<motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}><PageHeader .../></motion.div>` block with a `<motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">{exactActionsJSX}</motion.div>` row. The actions JSX was copied verbatim — no className, prop, or logic changes.
+   664→- For live.tsx and tests.tsx HistoryView (both outside a motion stagger container), used a plain `<div className="flex items-center justify-end gap-2 px-5 pt-5">` to match the surrounding non-animated structure.
+   665→- Preserved the conditional action logic where present (settings.tsx `savedFlash ? (...) : undefined`; live.tsx `live ? (...) : (<Badge>No live session</Badge>)`).
+   666→- Verified no orphan variable references: `allTags`/`notes.length` still used elsewhere in notes.tsx; `me.batch` still used in leaderboard.tsx; `leaderboard.length` was only in the removed subtitle but the `leaderboard` import remains used.
+   667→
+   668→Verification:
+   669→- `grep -rn "PageHeader" src/components/delta/pages/` → ZERO matches (all 9 PageHeader instances across 8 files removed).
+   670→- `grep -rn "PageHeader" src/components/delta/ui.tsx` → definition still present at line 37 (left intact per scope rules; it's just no longer consumed by any page).
+   671→- `npx tsc --noEmit` → only pre-existing errors remain (analysis/, examples/, skills/, and the pre-existing `GhostButton` `disabled` prop error in doubts.tsx at line 482 — was line 489 before this task, shifted by the 7 lines removed from the PageHeader block). Confirmed the doubts.tsx error exists on `git stash` of my changes — i.e., not introduced by this task.
+   672→- `tail -20 dev.log` → clean compiles (`✓ Compiled in Nms`), zero error lines after edits. Curl to localhost:3000 returns 200.
+   673→
+   674→Stage Summary:
+   675→- 8 files modified (9 PageHeader removals): `tests.tsx` (2 — AvailableView + HistoryView), `notes.tsx`, `leaderboard.tsx`, `achievements.tsx`, `live.tsx`, `doubts.tsx`, `profile.tsx`, `playground.tsx`, `settings.tsx`.
+   676→- Icons removed from lucide imports (header-only usage): `Medal` (leaderboard), `Award` (achievements), `User` (profile), `Sparkles` (playground), `Settings as SettingsIcon` (settings).
+   677→- Icons kept in lucide imports (used elsewhere): `FileText` + `History` (tests), `StickyNote` (notes), `Radio` (live), `MessageCircleQuestion` (doubts), `Pencil` (profile/settings). `Plus`/`Check` etc. kept everywhere they were already imported.
+   678→- `PageHeader` removed from every ui import; the `PageHeader` definition in `src/components/delta/ui.tsx` is untouched (out of scope per rules — could be cleaned up in a future pass).
+   679→- All action JSX relocated verbatim (no className/prop/logic changes); slim rows use `flex items-center justify-end gap-2 px-5 pt-5`. Inside-stagger pages use `motion.div` with `staggerItem`/`itemTransition`; the two non-stagger contexts (live.tsx, tests HistoryView) use plain `<div>` matching the existing structure.
+   680→- Conditional actions preserved: settings.tsx still renders the Saved badge only when `savedFlash` is true; live.tsx still shows the live-status pill vs the "No live session" Badge.
+   681→- One small cleanup beyond imports: removed the orphan `const subtitle = ...` line in achievements.tsx (only consumer was the PageHeader subtitle prop; would have triggered unused-var lint).
+   682→- No issues encountered. Pre-existing doubts.tsx GhostButton-disabled type error is unrelated and was not introduced here (verified via git stash).
+   683→
+   684→---
+   685→Task ID: viewport-fit
+   686→Agent: main (Z.ai Code)
+   687→Task: Make every page's components scale to the viewport — no content overflowing out of the viewport — without compromising the current design layout.
+   688→
+   689→Work Log:
+   690→- Created `src/hooks/use-canvas-fit.ts`: a ResizeObserver-based hook that measures the container and computes a uniform scale = min(1, (width-pad)/canvasWidth, (height-pad)/canvasHeight), clamped to a 0.3 floor so widgets stay readable on very narrow screens.
+   691→- Home (`home.tsx`): replaced the `overflow-x-auto` horizontal-scroll approach with the scaling hook. The 1448px canvas now gets `transform: scale(...)` with `transform-origin: top center` so it shrinks proportionally to fit BOTH width and height. Root changed from `min-h-[calc(100vh-64px)]` to `h-[calc(100vh-64px)]` (exact fit, no exceed). Container uses `overflow-hidden` so no content escapes the viewport.
+   692→- List containers (6 files): replaced fixed `max-h-[60vh]` / `max-h-80` / `max-h-96` / `max-h-[50vh]` with `flex-1 min-h-0 overflow-y-auto` so lists fill all available vertical space and scroll internally instead of capping at an arbitrary height (which left dead space on tall screens). Files: syllabus.tsx, doubts.tsx, leaderboard.tsx, profile.tsx, tests.tsx, playground.tsx.
+   693→- Analytics (`analytics.tsx`): replaced fixed chart heights `h-64`/`h-56` with `h-[clamp(200px,32vh,320px)]` and `h-[clamp(180px,26vh,260px)]` so charts scale with viewport height (bigger on tall screens, smaller on short screens, never unreadable).
+   694→- Playground (`playground.tsx`): root changed from `min-h-[calc(100vh-64px)]` to `h-[calc(100vh-64px)]` (exact fit).
+   695→
+   696→Agent Browser verification (3 viewport sizes, all pages):
+   697→- 1440×900 desktop: 8 pages checked — ALL `vOverflow: false, hOverflow: false`, `scrollH === clientH` (836===836), `scrollW === clientW` (1440===1440).
+   698→- 1024×768 narrow: 6 pages checked — ALL `vOverflow: false, hOverflow: false`. Home canvas scale confirmed: `scale(0.685083)` = (1024-32)/1448.
+   699→- 390×844 mobile: 6 pages checked — ALL `vOverflow: false, hOverflow: false`. Home canvas scale: `scale(0.3)` (the readability floor — (390-32)/1448 = 0.247, clamped to 0.3).
+   700→- 0 errors in dev.log throughout.
+   701→
+   702→Stage Summary:
+   703→- 8 files modified: new `use-canvas-fit.ts` hook, home.tsx, analytics.tsx, syllabus.tsx, doubts.tsx, leaderboard.tsx, profile.tsx, tests.tsx, playground.tsx.
+   704→- Every page now fits within `calc(100vh - 64px)` with zero overflow at any viewport size from 390px to 1440px+.
+   705→- The Home dashboard's free-form canvas scales uniformly (preserving widget positions/proportions) rather than scrolling or collapsing — the design layout is fully preserved.
+   706→- Lists fill available space and scroll internally; charts scale with viewport height; no dead space, no overflow.
+   707→

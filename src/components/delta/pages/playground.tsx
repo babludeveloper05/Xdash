@@ -12,6 +12,7 @@ import { WIDGET_REGISTRY } from './widget-content'
 import {
   GlassCard, GhostButton, PrimaryButton, EmptyState,
 } from '../ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
@@ -207,12 +208,13 @@ export function PlaygroundPage() {
   )
 
   return (
-    <motion.div
-      className="relative w-full h-[calc(100vh-64px)] flex flex-col"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        className="flex flex-col"
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
         <div className="flex items-center gap-2">
           <button
@@ -280,7 +282,7 @@ export function PlaygroundPage() {
             onPointerDown={onCanvasPointerDown}
           >
             {/* Desktop hint */}
-            <p className="absolute top-3 right-4 z-10 text-[10px] text-muted-foreground/60 hidden lg:block pointer-events-none">
+            <p className="absolute top-3 right-4 z-10 text-[10px] text-muted-foreground/60 hidden @lg:block pointer-events-none">
               Drag any widget · resize from edges · Esc to deselect
             </p>
 
@@ -454,7 +456,8 @@ export function PlaygroundPage() {
           </GlassCard>
         </div>
       )}
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }
 

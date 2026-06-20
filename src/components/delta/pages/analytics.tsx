@@ -8,6 +8,7 @@ import {
 } from 'recharts'
 import { Clock, TrendingUp, Flame, Target, Award, Activity, BookOpen } from 'lucide-react'
 import { GlassCard, MetricCard } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore, useSubjectProgress, useTotalHours } from '@/lib/store'
 import { studyHours, SUBJECTS } from '@/lib/mock-data'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -81,12 +82,12 @@ export function AnalyticsPage() {
   )
 
   return (
-    <motion.div
-      className="h-full overflow-y-auto scroll-thin"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       {/*
         Nested stagger container: animates as a unit after the header, then
         cascades its own children (KPIs → charts → mastery) for a layered reveal.
@@ -100,7 +101,7 @@ export function AnalyticsPage() {
         <motion.div
           variants={staggerItem(reduce)}
           transition={itemTransition(reduce)}
-          className="grid grid-cols-2 lg:grid-cols-4 gap-4"
+          className="grid grid-cols-2 @lg:grid-cols-4 gap-4"
         >
           <MetricCard
             label="Study Hours"
@@ -134,10 +135,10 @@ export function AnalyticsPage() {
         <motion.div
           variants={staggerItem(reduce)}
           transition={itemTransition(reduce)}
-          className="grid grid-cols-1 lg:grid-cols-2 gap-4"
+          className="grid grid-cols-1 @lg:grid-cols-2 gap-4"
         >
           {/* Study hours area — spans full width */}
-          <GlassCard className="p-5 lg:col-span-2">
+          <GlassCard className="p-5 @lg:col-span-2">
             <ChartHeader
               icon={<Activity className="size-3.5" />}
               title="Daily Study Hours"
@@ -288,7 +289,7 @@ export function AnalyticsPage() {
               title="Subject Mastery"
               subtitle="Detailed progress per subject"
             />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 mt-1">
+            <div className="grid grid-cols-1 @md:grid-cols-2 gap-x-8 gap-y-4 mt-1">
               {SUBJECTS.slice(0, 6).map((s) => {
                 const v = Math.round((subjectProgress[s.id] ?? 0) * 100)
                 return (
@@ -317,7 +318,8 @@ export function AnalyticsPage() {
           </GlassCard>
         </motion.div>
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }
 

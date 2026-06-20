@@ -11,6 +11,7 @@ import {
   GlassCard, Pill, PrimaryButton, GhostButton, IconButton,
   ProgressRing, MetricCard, Badge, EmptyState,
 } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore, type HistoryRow } from '@/lib/store'
 import { tests, buildQuestions, type TestItem, type Question } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
@@ -42,7 +43,7 @@ export function TestsPage() {
   const [analysisRow, setAnalysisRow] = useState<HistoryRow | null>(null)
 
   return (
-    <div className="h-full">
+    <ScaledPage>
       {view === 'available' && (
         <AvailableView
           onStart={(t) => {
@@ -88,7 +89,7 @@ export function TestsPage() {
           onBack={() => setView(lastResult ? 'results' : 'history')}
         />
       )}
-    </div>
+    </ScaledPage>
   )
 }
 
@@ -137,7 +138,7 @@ function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void;
       <motion.div
         variants={staggerItem(reduce)}
         transition={itemTransition(reduce)}
-        className="grid grid-cols-2 md:grid-cols-4 gap-3"
+        className="grid grid-cols-2 @md:grid-cols-4 gap-3"
       >
         <MetricCard label="Tests Due" value={dueCount} sub="Active deadlines" icon={<Clock className="size-3.5" />} />
         <MetricCard label="Avg Score" value={`${avgPct}%`} sub="Across attempts" icon={<Target className="size-3.5" />} />
@@ -188,7 +189,7 @@ function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void;
             hint="Try a different type or difficulty filter."
           />
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3 pb-1">
+          <div className="grid grid-cols-1 @md:grid-cols-2 @xl:grid-cols-3 gap-3 pb-1">
             {list.map((t) => (
               <TestCard key={t.id} test={t} onStart={() => onStart(t)} />
             ))}
@@ -365,7 +366,7 @@ function AttemptView({
           </div>
           <button
             onClick={() => setPalette((p) => !p)}
-            className="grid place-items-center size-9 rounded-full bg-white/5 border border-border hover:bg-white/10 lg:hidden"
+            className="grid place-items-center size-9 rounded-full bg-white/5 border border-border hover:bg-white/10 @lg:hidden"
             aria-label="Toggle question palette"
           >
             <Grid3x3 className="size-4" />
@@ -474,7 +475,7 @@ function AttemptView({
 
         {/* Palette */}
         {palette && (
-          <GlassCard className="w-64 shrink-0 p-4 flex-col hidden lg:flex">
+          <GlassCard className="w-64 shrink-0 p-4 flex-col hidden @lg:flex">
             <div className="grid grid-cols-2 gap-2 mb-4 text-[11px]">
               <Legend color="bg-primary" label={`Answered ${answeredCount}`} />
               <Legend color="bg-warning" label={`Marked ${markedCount}`} />
@@ -600,8 +601,8 @@ function ResultsView({
           <p className="text-sm text-muted-foreground mt-1">{result.test.name}</p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <GlassCard className="p-6 flex flex-col items-center justify-center md:col-span-1">
+        <div className="grid grid-cols-1 @md:grid-cols-3 gap-4">
+          <GlassCard className="p-6 flex flex-col items-center justify-center @md:col-span-1">
             <ProgressRing value={pct / 100} size={140} stroke={10} valueClass="text-primary">
               <div className="text-center">
                 <div className="text-3xl font-light tabular">{result.score}</div>
@@ -611,7 +612,7 @@ function ResultsView({
             <p className="mt-3 text-sm text-muted-foreground">Final Score</p>
           </GlassCard>
 
-          <div className="md:col-span-2 grid grid-cols-2 gap-4">
+          <div className="@md:col-span-2 grid grid-cols-2 gap-4">
             <ResultStat icon={<Check className="size-4" />} label="Correct" value={result.correct} tone="text-success" />
             <ResultStat icon={<X className="size-4" />} label="Wrong" value={result.wrong} tone="text-destructive" />
             <ResultStat
@@ -808,7 +809,7 @@ function AnalysisView({
         </div>
 
         {/* Subject breakdown */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 @md:grid-cols-3 gap-4">
           {breakdown.map((b) => {
             const acc = b.correct + b.wrong > 0 ? (b.correct / (b.correct + b.wrong)) * 100 : 0
             return (

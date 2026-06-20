@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Crown, TrendingUp, TrendingDown, Minus, Flame, Search, ArrowUpRight } from 'lucide-react'
 import { GlassCard, Pill, Avatar, PrimaryButton, EmptyState } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { leaderboard } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -11,7 +12,7 @@ import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 const SCOPES = ['All', 'My Batch', 'Cohort', 'Friends'] as const
 type Scope = (typeof SCOPES)[number]
 
-const ROW_GRID = 'grid grid-cols-[1.75rem_1fr_3rem_4rem_4rem] sm:grid-cols-[2.25rem_1fr_4.5rem_5rem_5rem] gap-3'
+const ROW_GRID = 'grid grid-cols-[1.75rem_1fr_3rem_4rem_4rem] @sm:grid-cols-[2.25rem_1fr_4.5rem_5rem_5rem] gap-3'
 
 export function LeaderboardPage() {
   const [scope, setScope] = useState<Scope>('All')
@@ -45,12 +46,13 @@ export function LeaderboardPage() {
   const showPodium = !query && scope !== 'Friends' && podium.length === 3
 
   return (
-    <motion.div
-      className="h-full flex flex-col"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        className="flex flex-col"
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {SCOPES.map((s) => (
@@ -134,7 +136,7 @@ export function LeaderboardPage() {
             <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Your Rank</span>
             <span className="text-3xl font-light tabular text-primary leading-none">#{me.rank}</span>
           </div>
-          <div className="h-12 w-px bg-border shrink-0 hidden sm:block" />
+          <div className="h-12 w-px bg-border shrink-0 hidden @sm:block" />
           <Avatar
             name={me.name}
             size={42}
@@ -164,7 +166,7 @@ export function LeaderboardPage() {
               </p>
             )}
           </div>
-          <PrimaryButton className="shrink-0 hidden md:inline-flex">
+          <PrimaryButton className="shrink-0 hidden @md:inline-flex">
             <ArrowUpRight className="size-3.5" /> Jump to rank
           </PrimaryButton>
         </GlassCard>
@@ -259,6 +261,7 @@ export function LeaderboardPage() {
           </div>
         </GlassCard>
       </motion.div>
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }

@@ -11,6 +11,7 @@ import {
   GlassCard, Pill, Avatar, EmptyState,
   PrimaryButton, GhostButton, Badge, Segmented,
 } from '@/components/delta/ui'
+import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore, type DoubtItem } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -173,12 +174,13 @@ export function DoubtsPage() {
   }
 
   return (
-    <motion.div
-      className="h-full flex flex-col gap-4"
-      variants={staggerContainer(reduce)}
-      initial="initial"
-      animate="animate"
-    >
+    <ScaledPage>
+      <motion.div
+        className="flex flex-col gap-4"
+        variants={staggerContainer(reduce)}
+        initial="initial"
+        animate="animate"
+      >
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
         <PrimaryButton
           onClick={() => setComposing(true)}
@@ -240,7 +242,7 @@ export function DoubtsPage() {
       </motion.div>
 
       {/* Search + sort */}
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 flex flex-col sm:flex-row sm:items-center gap-3">
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 flex flex-col @sm:flex-row @sm:items-center gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
           <input
@@ -495,7 +497,8 @@ export function DoubtsPage() {
           <style>{`@keyframes fadeIn{from{opacity:0}to{opacity:1}}`}</style>
         </div>
       )}
-    </motion.div>
+      </motion.div>
+    </ScaledPage>
   )
 }
 
