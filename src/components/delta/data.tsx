@@ -46,7 +46,7 @@ export function DataCard({
   return (
     <GlassCard
       hover={!!onClick}
-      className={cn('flex flex-col gap-3 group transition-all duration-300', onClick && 'hover:elev-2 hover:-translate-y-0.5', className)}
+      className={cn('flex flex-col gap-3 group transition-all duration-300 overflow-hidden', onClick && 'hover:elev-2 hover:-translate-y-0.5', className)}
     >
       {onClick ? (
         <button
@@ -101,10 +101,10 @@ function CardBody({
 }) {
   return (
     <div className="min-w-0">
-      <p className={cn('text-sm font-medium leading-snug text-pretty', titleClassName)}>{title}</p>
-      {badges && <div className="flex items-center gap-1.5 mt-2 flex-wrap">{badges}</div>}
+      <p className={cn('text-sm font-semibold leading-snug text-pretty', titleClassName)}>{title}</p>
+      {badges && <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">{badges}</div>}
       {meta && <div className="mt-2 text-[11px] text-muted-foreground">{meta}</div>}
-      {stats && <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground tabular">{stats}</div>}
+      {stats && <div className="flex items-center gap-3 mt-2.5 text-[11px] text-muted-foreground tabular">{stats}</div>}
     </div>
   )
 }
@@ -138,16 +138,16 @@ export function StatBlock({
     <GlassCard
       hover={!!onClick}
       onClick={onClick}
-      className={cn('p-4 flex items-center gap-3', className)}
+      className={cn('p-4 flex items-center gap-3.5', className)}
     >
       {icon && (
-        <span className="grid place-items-center size-9 rounded-xl bg-primary/12 text-primary border border-primary/15 shrink-0">
+        <span className="grid place-items-center size-10 rounded-xl bg-primary/12 text-primary border border-primary/15 shrink-0">
           {icon}
         </span>
       )}
       <div className="min-w-0 flex-1">
-        <p className="text-[10px] uppercase tracking-wider text-muted-foreground truncate">{label}</p>
-        <p className="text-base font-light tabular leading-tight">{value}</p>
+        <p className="text-[10px] uppercase tracking-wider text-muted-foreground/80 truncate font-medium">{label}</p>
+        <p className="text-lg font-semibold tabular leading-tight mt-0.5">{value}</p>
         {sub && <p className="text-[11px] text-muted-foreground truncate mt-0.5">{sub}</p>}
       </div>
       {trend !== undefined && (

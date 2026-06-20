@@ -58,7 +58,7 @@ export function SectionHeader({
       <div className="flex items-center gap-2.5 min-w-0">
         <h2 className="text-sm font-semibold tracking-tight truncate">{title}</h2>
         {count !== undefined && (
-          <span className="text-[11px] text-muted-foreground tabular shrink-0">{count}</span>
+          <span className="text-[11px] text-muted-foreground/80 tabular shrink-0 font-medium">{count}</span>
         )}
       </div>
       {action && <div className="shrink-0">{action}</div>}

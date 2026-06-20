@@ -90,9 +90,9 @@ export function Pill({
     <button
       onClick={onClick}
       className={cn(
-        'rounded-full px-3.5 py-1.5 text-xs font-medium transition-all whitespace-nowrap',
+        'rounded-full px-4 py-1.5 text-xs font-medium transition-all whitespace-nowrap',
         active
-          ? 'bg-cream text-cream-foreground elev-1'
+          ? 'bg-cream text-cream-foreground elev-1 font-semibold'
           : 'bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground border border-border',
         className
       )}

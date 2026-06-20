@@ -49,11 +49,11 @@ function Header({
   return (
     <div
       className={cn(
-        'flex items-center gap-1.5 mb-2.5',
+        'flex items-center gap-1.5 mb-3',
         full ? 'justify-center' : 'justify-between'
       )}
     >
-      <span className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.14em] font-medium text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-[10.5px] uppercase tracking-[0.14em] font-semibold text-muted-foreground/90">
         <span className={cn(accent ? 'text-primary' : 'text-muted-foreground/80')}>{icon}</span>
         <span className="truncate">{title}</span>
       </span>
@@ -86,9 +86,9 @@ export function ComponentGreeting() {
   return (
     <div className="flex items-center justify-between h-full gap-4 px-0.5">
       <div className="min-w-0">
-        <p className="text-xl sm:text-2xl font-light tracking-tight text-balance leading-tight">
+        <p className="text-xl sm:text-2xl font-semibold tracking-tight text-balance leading-tight">
           {greeting()},{' '}
-          <span className="font-medium text-gradient-warm">{firstName}</span>
+          <span className="font-bold text-gradient-warm">{firstName}</span>
         </p>
         <p className="text-xs sm:text-sm text-muted-foreground mt-1 text-pretty">
           {dateStr}

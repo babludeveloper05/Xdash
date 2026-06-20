@@ -136,6 +136,11 @@
     outline-offset: 2px;
     border-radius: 4px;
   }
+  /* Placeholder text — brighter than the default for better readability
+     against the dark glassmorphic surfaces. */
+  ::placeholder {
+    color: oklch(0.55 0.01 72 / 0.7);
+  }
 }
 
 @layer utilities {
