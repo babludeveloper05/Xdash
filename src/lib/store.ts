@@ -170,12 +170,37 @@ export const TAB_ORDER: TabId[] = [
   'leaderboard', 'achievements', 'profile', 'settings',
 ]
 
+/** All tab ids available for the user to enable/disable in their nav. */
+export const ALL_TABS: TabId[] = [
+  'home', 'library', 'tests', 'notes', 'live', 'analytics',
+  'leaderboard', 'achievements', 'profile', 'settings',
+  'syllabus', 'doubts', 'playground',
+]
+
+/** Appearance preferences — persisted so the user's theme survives reloads. */
+export interface AppearancePrefs {
+  /** Accent color hue in degrees (0–360). Drives --primary, --ring, chart colors. */
+  accentHue: number
+  /** Layout density. 'comfortable' = more padding; 'compact' = tighter. */
+  density: 'comfortable' | 'compact'
+  /** Glassmorphism intensity for cards/surfaces. */
+  glass: 'strong' | 'medium' | 'subtle'
+}
+
 interface DeltaState {
   activeTab: TabId
   /** 1 = forward (right in nav), -1 = backward (left). Drives page transitions. */
   direction: 1 | -1
   setTab: (t: TabId) => void
   cycleTab: (dir: -1 | 1) => void
+
+  /** Tabs the user has enabled in their nav (set during onboarding). Empty = all. */
+  enabledTabs: TabId[]
+  setEnabledTabs: (tabs: TabId[]) => void
+
+  /** Appearance prefs (accent hue, density, glass). Drives the ThemeVars injector. */
+  appearance: AppearancePrefs
+  setAppearance: (patch: Partial<AppearancePrefs>) => void
 
   spotlightOpen: boolean
   setSpotlight: (v: boolean) => void
@@ -276,6 +301,13 @@ export const useStore = create<DeltaState>()(
         const next = TAB_ORDER[(anchor + dir + TAB_ORDER.length) % TAB_ORDER.length]
         set({ activeTab: next, direction: dir })
       },
+
+      enabledTabs: [],
+      setEnabledTabs: (tabs) => set({ enabledTabs: tabs }),
+
+      appearance: { accentHue: 62, density: 'comfortable', glass: 'strong' },
+      setAppearance: (patch) =>
+        set((s) => ({ appearance: { ...s.appearance, ...patch } })),
 
       spotlightOpen: false,
       setSpotlight: (v) => set({ spotlightOpen: v }),
@@ -484,6 +516,8 @@ export const useStore = create<DeltaState>()(
         notifications: s.notifications,
         doubts: s.doubts,
         doubtVotes: s.doubtVotes,
+        enabledTabs: s.enabledTabs,
+        appearance: s.appearance,
       }),
     }
   )

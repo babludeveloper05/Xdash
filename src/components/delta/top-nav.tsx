@@ -7,24 +7,36 @@ import { cn } from '@/lib/utils'
 import { Bell, Search, Triangle } from 'lucide-react'
 import { navSpring } from '@/lib/motion'
 
-const TABS: { id: TabId; label: string }[] = [
-  { id: 'home', label: 'Home' },
-  { id: 'library', label: 'Library' },
-  { id: 'tests', label: 'Tests' },
-  { id: 'notes', label: 'Notes' },
-  { id: 'live', label: 'Live' },
-  { id: 'analytics', label: 'Analytics' },
-  { id: 'leaderboard', label: 'Ranks' },
-  { id: 'achievements', label: 'Wins' },
-  { id: 'profile', label: 'Profile' },
-  { id: 'settings', label: 'Settings' },
-]
+const ALL_TAB_LABELS: Record<TabId, string> = {
+  home: 'Home',
+  library: 'Library',
+  tests: 'Tests',
+  notes: 'Notes',
+  live: 'Live',
+  analytics: 'Analytics',
+  leaderboard: 'Ranks',
+  achievements: 'Wins',
+  profile: 'Profile',
+  settings: 'Settings',
+  syllabus: 'Syllabus',
+  doubts: 'Doubts',
+  playground: 'Playground',
+}
 
 export function TopNav() {
   const activeTab = useStore((s) => s.activeTab)
   const setTab = useStore((s) => s.setTab)
   const setSpotlight = useStore((s) => s.setSpotlight)
   const profileName = useStore((s) => s.profile.name)
+  // User-customizable nav: only show tabs the user enabled during onboarding
+  // (or in Settings). Falls back to the default 10-tab set if empty (pre-
+  // onboarding or legacy users). Profile + Settings are always shown.
+  const enabledTabs = useStore((s) => s.enabledTabs)
+  const tabs =
+    enabledTabs.length > 0
+      ? enabledTabs
+      : ['home', 'library', 'tests', 'notes', 'live', 'analytics', 'leaderboard', 'achievements', 'profile', 'settings'] as TabId[]
+  const navTabs = tabs.filter((t) => t !== 'playground') // playground is hidden, reached via Settings
 
   return (
     <header className="fixed top-0 inset-x-0 z-50 h-16 glass-strong border-b border-border flex items-center px-4 sm:px-5 gap-3 sm:gap-4">
@@ -45,12 +57,12 @@ export function TopNav() {
       {/* Center nav */}
       <nav className="flex-1 flex items-center justify-center min-w-0">
         <div className="flex items-center gap-0.5 rounded-full bg-white/5 border border-border p-1 overflow-x-auto scroll-none max-w-full">
-          {TABS.map((t) => {
-            const on = activeTab === t.id
+          {navTabs.map((id) => {
+            const on = activeTab === id
             return (
               <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
+                key={id}
+                onClick={() => setTab(id)}
                 aria-current={on ? 'page' : undefined}
                 className={cn(
                   'relative rounded-full px-3 sm:px-3.5 py-1.5 text-[13px] font-medium transition-colors whitespace-nowrap',
@@ -68,7 +80,7 @@ export function TopNav() {
                     aria-hidden
                   />
                 )}
-                <span className="relative z-[1]">{t.label}</span>
+                <span className="relative z-[1]">{ALL_TAB_LABELS[id]}</span>
               </button>
             )
           })}

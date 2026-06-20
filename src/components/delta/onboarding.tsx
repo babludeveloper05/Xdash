@@ -1,8 +1,8 @@
 'use client'
 
-import { useStore } from '@/lib/store'
+import { useStore, type TabId } from '@/lib/store'
 import { useState } from 'react'
-import { GraduationCap, Check, Target, Sparkles, UserRound, MapPin, BookOpenCheck, ArrowRight, ChevronLeft, Plus, X, Briefcase, Rocket, Palette, Code2, Database, TrendingUp, Heart, Languages, Music, PenLine, FlaskConical, Atom, Trophy } from 'lucide-react'
+import { GraduationCap, Check, Target, Sparkles, UserRound, MapPin, BookOpenCheck, ArrowRight, ChevronLeft, Plus, X, Briefcase, Rocket, Palette, Code2, Database, TrendingUp, Heart, Languages, Music, PenLine, FlaskConical, Atom, Trophy, LayoutDashboard, Home, Library, FileText, StickyNote, Radio, Activity, Medal, Award, User, Settings as SettingsIcon, Layers, MessageCircleQuestion } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const TARGET_YEARS = ['2026', '2027', '2028']
@@ -71,12 +71,35 @@ const TRACK_CATEGORIES: TrackCategory[] = [
 const ALL_PRESETS = TRACK_CATEGORIES.flatMap((c) => c.presets)
 
 export function Onboarding() {
-  const { onboardingDone, finishOnboarding, setDailyGoal, setProfile } = useStore()
+  const { onboardingDone, finishOnboarding, setDailyGoal, setProfile, setEnabledTabs, setAppearance } = useStore()
   const [step, setStep] = useState(0)
   const [presetId, setPresetId] = useState<string>('')
   const [picked, setPicked] = useState<string[]>([])
   const [customSubject, setCustomSubject] = useState('')
   const [goal, setGoal] = useState(6)
+
+  // page + appearance customization (new steps)
+  const PAGE_OPTIONS: { id: TabId; label: string; icon: typeof Home; locked?: boolean }[] = [
+    { id: 'home', label: 'Home', icon: Home, locked: true },
+    { id: 'library', label: 'Library', icon: Library },
+    { id: 'tests', label: 'Tests', icon: FileText },
+    { id: 'notes', label: 'Notes', icon: StickyNote },
+    { id: 'live', label: 'Live', icon: Radio },
+    { id: 'analytics', label: 'Analytics', icon: Activity },
+    { id: 'leaderboard', label: 'Leaderboard', icon: Medal },
+    { id: 'achievements', label: 'Achievements', icon: Award },
+    { id: 'syllabus', label: 'Syllabus', icon: Layers },
+    { id: 'doubts', label: 'Doubts', icon: MessageCircleQuestion },
+    { id: 'playground', label: 'Playground', icon: LayoutDashboard },
+    { id: 'profile', label: 'Profile', icon: User, locked: true },
+    { id: 'settings', label: 'Settings', icon: SettingsIcon, locked: true },
+  ]
+  const [enabledPages, setEnabledPages] = useState<TabId[]>(
+    ['home', 'library', 'tests', 'notes', 'live', 'analytics', 'leaderboard', 'achievements', 'profile', 'settings']
+  )
+  const [accentHue, setAccentHue] = useState(62)
+  const [density, setDensity] = useState<'comfortable' | 'compact'>('comfortable')
+  const [glass, setGlass] = useState<'strong' | 'medium' | 'subtle'>('strong')
 
   // profile fields
   const [name, setName] = useState('')
@@ -117,6 +140,16 @@ export function Onboarding() {
       body: 'These power your library, tests and doubts. Add your own if a subject is missing — you can change this anytime in Settings.',
     },
     {
+      icon: <LayoutDashboard className="size-6" />,
+      title: 'Choose your pages',
+      body: 'Pick which pages appear in your navigation. Home, Profile and Settings are always on — toggle the rest to fit how you work.',
+    },
+    {
+      icon: <Palette className="size-6" />,
+      title: 'Make it yours',
+      body: 'Pick an accent color, choose how dense the layout feels, and tune the glassmorphism. You can change all of this later in Settings.',
+    },
+    {
       icon: <Target className="size-6" />,
       title: 'Set a daily goal',
       body: 'How many hours do you aim to put in each day? This powers your goal ring and streak.',
@@ -142,12 +175,15 @@ export function Onboarding() {
     step === 1 ? name.trim().length > 0 :
     step === 2 ? presetId !== '' :
     step === 3 ? picked.length > 0 :
+    step === 4 ? enabledPages.length >= 3 :
     true
 
   const continueLabel =
     step === 1 ? 'Looks good' :
     step === 2 ? 'Use these subjects' :
-    step === 3 ? 'Almost done' :
+    step === 3 ? 'Next' :
+    step === 4 ? 'Next' :
+    step === 5 ? 'Next' :
     step === last ? 'Enter Delta' : 'Continue'
 
   function commit() {
@@ -164,6 +200,8 @@ export function Onboarding() {
       subjects: picked,
       bio: bio.trim() || `${track} working toward ${resolvedGoal} on Project Delta.`,
     })
+    setEnabledTabs(enabledPages)
+    setAppearance({ accentHue, density, glass })
     setDailyGoal(goal)
     finishOnboarding()
   }
@@ -367,8 +405,145 @@ export function Onboarding() {
           </div>
         )}
 
-        {/* Step 4 — daily goal */}
+        {/* Step 4 — choose pages */}
         {step === 4 && (
+          <div className="mt-5 animate-[fadeUp_0.25s_ease]">
+            <div className="grid grid-cols-2 gap-2">
+              {PAGE_OPTIONS.map((p) => {
+                const on = enabledPages.includes(p.id)
+                const Icon = p.icon
+                const locked = p.locked
+                return (
+                  <button
+                    key={p.id}
+                    onClick={() => {
+                      if (locked) return
+                      setEnabledPages((prev) =>
+                        on ? prev.filter((x) => x !== p.id) : [...prev, p.id]
+                      )
+                    }}
+                    disabled={locked}
+                    className={cn(
+                      'rounded-xl border p-3 text-left transition-all flex items-center gap-2.5',
+                      on ? 'border-primary bg-primary/10' : 'border-border bg-white/5 hover:bg-white/10 hover:border-white/15',
+                      locked && 'opacity-60 cursor-not-allowed'
+                    )}
+                  >
+                    <Icon className="size-4 text-primary shrink-0" />
+                    <span className="text-[13px] font-medium flex-1">{p.label}</span>
+                    {locked ? (
+                      <span className="text-[9px] uppercase tracking-wide text-muted-foreground">Always</span>
+                    ) : on ? (
+                      <Check className="size-3.5 text-primary" />
+                    ) : null}
+                  </button>
+                )
+              })}
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-3">
+              {enabledPages.length} of {PAGE_OPTIONS.length} pages enabled. Toggle freely — you can change this anytime in Settings.
+            </p>
+          </div>
+        )}
+
+        {/* Step 5 — appearance */}
+        {step === 5 && (
+          <div className="mt-5 flex flex-col gap-5 animate-[fadeUp_0.25s_ease]">
+            {/* Accent hue picker */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Accent color</span>
+                <span
+                  className="size-6 rounded-full border-2 border-white/20"
+                  style={{ background: `oklch(0.74 0.135 ${accentHue})` }}
+                  aria-hidden
+                />
+              </div>
+              <input
+                type="range"
+                min={0}
+                max={360}
+                value={accentHue}
+                onChange={(e) => setAccentHue(Number(e.target.value))}
+                className="w-full"
+                style={{ accentColor: `oklch(0.74 0.135 ${accentHue})` }}
+                aria-label="Accent color hue"
+              />
+              <div
+                className="h-2 rounded-full mt-2"
+                style={{ background: 'linear-gradient(to right, oklch(0.74 0.135 0), oklch(0.74 0.135 60), oklch(0.74 0.135 120), oklch(0.74 0.135 180), oklch(0.74 0.135 240), oklch(0.74 0.135 300), oklch(0.74 0.135 360))' }}
+                aria-hidden
+              />
+              <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground/70 tabular">
+                <span>0°</span><span>180°</span><span>360°</span>
+              </div>
+            </div>
+
+            {/* Density */}
+            <div>
+              <span className="text-sm text-muted-foreground block mb-2">Layout density</span>
+              <div className="grid grid-cols-2 gap-2">
+                {(['comfortable', 'compact'] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setDensity(d)}
+                    className={cn(
+                      'rounded-xl border py-2.5 px-3 text-sm font-medium transition-all capitalize',
+                      density === d ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                    )}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Glass strength */}
+            <div>
+              <span className="text-sm text-muted-foreground block mb-2">Glassmorphism</span>
+              <div className="grid grid-cols-3 gap-2">
+                {(['subtle', 'medium', 'strong'] as const).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setGlass(g)}
+                    className={cn(
+                      'rounded-xl border py-2.5 px-3 text-sm font-medium transition-all capitalize',
+                      glass === g ? 'border-primary bg-primary/10 text-foreground' : 'border-border bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                    )}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Live preview card */}
+            <div
+              className="rounded-2xl border p-4 transition-all"
+              style={{
+                background: `color-mix(in oklch, oklch(0.215 0.008 ${accentHue}) ${glass === 'strong' ? 88 : glass === 'medium' ? 72 : 55}%, transparent)`,
+                backdropFilter: 'blur(20px)',
+                borderColor: `color-mix(in oklch, oklch(0.74 0.135 ${accentHue}) 25%, transparent)`,
+              }}
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <span
+                  className="grid place-items-center size-8 rounded-lg text-primary-foreground"
+                  style={{ background: `oklch(0.74 0.135 ${accentHue})` }}
+                >
+                  <Sparkles className="size-4" />
+                </span>
+                <span className="text-sm font-medium">Live preview</span>
+              </div>
+              <p className="text-xs text-muted-foreground" style={{ padding: density === 'compact' ? '2px 0' : '4px 0' }}>
+                This is how your cards and accent will look. The hue, density and glass strength apply across the whole app.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Step 6 — daily goal */}
+        {step === 6 && (
           <div className="mt-6 animate-[fadeUp_0.25s_ease]">
             <div className="flex items-end justify-between mb-3">
               <span className="text-sm text-muted-foreground">Daily goal</span>
@@ -380,7 +555,8 @@ export function Onboarding() {
               max={12}
               value={goal}
               onChange={(e) => setGoal(Number(e.target.value))}
-              className="w-full accent-[oklch(0.74_0.135_62)]"
+              className="w-full"
+              style={{ accentColor: `oklch(0.74 0.135 ${accentHue})` }}
               aria-label="Daily goal in hours"
             />
             <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground/70 tabular">

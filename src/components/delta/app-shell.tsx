@@ -27,6 +27,7 @@ import {
   pageTransition,
   type PageTransitionCtx,
 } from '@/lib/motion'
+import { ThemeVars } from './theme-vars'
 
 function ActivePage() {
   const tab = useStore((s) => s.activeTab)
@@ -122,6 +123,7 @@ export function AppShell() {
 
   return (
     <div className="ambient fixed inset-0 flex flex-col">
+      <ThemeVars />
       {/* Scroll progress bar — springs along the top of the content area.
           Parallax-adjacent: visualises how far through the page you've scrolled. */}
       <motion.div

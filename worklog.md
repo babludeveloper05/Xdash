@@ -879,3 +879,39 @@ Stage Summary:
 - 5 files modified: `store.ts` (+track/subjects on UserProfile), `onboarding.tsx` (full rewrite with 19 presets across 4 categories + free-form subjects), `doubts.tsx` (dynamic subjects from profile + sends track/subjects to API), `api/doubts/ask/route.ts` (field-aware persona), `settings.tsx` (+Track field), `layout.tsx` (metadata).
 - Project Delta is now universal: serves students (JEE/NEET/UPSC/Boards), professionals (developers, data, PMs, designers, finance, marketing, DevOps), and personal-growth learners (languages, fitness, writing, music). The AI tutor adapts its persona and examples to whatever field the user is in.
 - The 6 science subjects remain as default demo content for Library/Tests/Analytics (sample data); a real backend would populate per-track content. The app structure fully supports any track.
+
+---
+Task ID: customizable-onboarding
+Agent: main (Z.ai Code)
+Task: Make onboarding fully customizable — user can pick their subjects/goal, choose which pages they want in their nav, and customize the appearance (accent color, density, glassmorphism).
+
+Work Log:
+- **Store** (`src/lib/store.ts`): added `AppearancePrefs` interface (accentHue, density, glass), `enabledTabs: TabId[]` + `appearance: AppearancePrefs` state, `setEnabledTabs` + `setAppearance` actions, exported `ALL_TABS`. Both added to `partialize` so they persist. Default: empty enabledTabs (falls back to all 10), accentHue 62 (amber), density comfortable, glass strong.
+
+- **ThemeVars** (`src/components/delta/theme-vars.tsx` — new): a component mounted once in AppShell that injects CSS custom properties into :root based on appearance prefs. Overrides --primary, --primary-foreground, --ring, --sidebar-*, --chart-1..5 (all derived from the accent hue), --radius + --density-pad (density), and --card/--popover (glass strength). Because every component reads from these vars, the entire app recolors live when the user picks a different accent.
+
+- **TopNav** (`src/components/delta/top-nav.tsx`): replaced the hardcoded `TABS` array with a dynamic read from `enabledTabs` (falls back to the default 10 if empty). Added `ALL_TAB_LABELS` map for label lookup. Playground is always hidden from the nav (reached via Settings). So the nav now shows exactly the pages the user enabled during onboarding.
+
+- **AppShell** (`src/components/delta/app-shell.tsx`): mounted `<ThemeVars />` so the CSS variable overrides apply app-wide.
+
+- **Onboarding** (`src/components/delta/onboarding.tsx`) — added 2 new steps:
+  - Step 4 "Choose your pages": a toggle grid of all 13 pages. Home, Profile, Settings are locked (always on). The rest are toggleable. Requires ≥3 enabled to continue. Shows "X of 13 pages enabled" counter.
+  - Step 5 "Make it yours": accent hue picker (0–360° range slider with a rainbow gradient preview), density (comfortable/compact), glassmorphism (subtle/medium/strong), and a live preview card that reflects all three choices in real time.
+  - Updated `commit()` to call `setEnabledTabs(enabledPages)` + `setAppearance({ accentHue, density, glass })`.
+  - Updated `canContinue` (step 4 requires ≥3 pages) and `continueLabel` (steps 3-5 say "Next").
+  - The daily goal slider now uses the user's chosen accent color for its accentColor.
+
+Agent Browser verification:
+- Cleared localStorage → ran full 7-step onboarding as "Alex Chen" → Software Developer track → toggled Live + Achievements off → set accent hue to 200 (blue) → completed.
+- localStorage confirmed: `enabledTabs: ["home","library","tests","notes","analytics","leaderboard","profile","settings"]` (8 tabs, Live + Achievements removed), `appearance: { accentHue: 200, density: "comfortable", glass: "strong" }`.
+- Nav rendered exactly the 8 enabled tabs (no Live, no Wins/Achievements) ✓
+- `--primary: oklch(0.74 0.135 200)` — accent is blue (hue 200), not the default amber (62) ✓
+- The entire app recolored live via the ThemeVars CSS variable injection.
+- Dashboard greeting: "Good evening, Alex" ✓
+- 0 errors.
+
+Stage Summary:
+- 5 files modified: `store.ts` (+AppearancePrefs, enabledTabs, setters, partialize), new `theme-vars.tsx`, `top-nav.tsx` (dynamic tabs), `app-shell.tsx` (mount ThemeVars), `onboarding.tsx` (+2 steps: pages + appearance).
+- Onboarding is now fully customizable: user picks subjects (free-form), chooses which pages appear in their nav (toggle grid with locked Home/Profile/Settings), and customizes appearance (accent hue 0–360°, density, glassmorphism) with a live preview.
+- The appearance applies app-wide instantly via CSS custom property injection — every component that reads --primary/--ring/--chart-*/--card recolors. The nav shows only the user's chosen pages.
+- All preferences persist (Zustand) and can be changed later in Settings (the Settings appearance section is the natural next addition).
