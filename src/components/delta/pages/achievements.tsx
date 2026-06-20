@@ -6,9 +6,9 @@ import type { LucideIcon } from 'lucide-react'
 import {
   Footprints, Flame, Zap, Shield, Target, Crown, Swords, Atom, FlaskConical,
   Sigma, Trophy, Moon, Sunrise, Medal, Sparkles, MessageCircleQuestion,
-  Lock, Check, Award,
+  Lock, Check,
 } from 'lucide-react'
-import { GlassCard, PageHeader, Pill, ProgressRing } from '@/components/delta/ui'
+import { GlassCard, Pill, ProgressRing } from '@/components/delta/ui'
 import { achievements, type Achievement } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -89,8 +89,6 @@ export function AchievementsPage() {
     [cat, rarity]
   )
 
-  const subtitle = `${earnedCount} of ${achievements.length} unlocked · ${rarityCounts.Rare}R · ${rarityCounts.Epic}E · ${rarityCounts.Legendary}L`
-
   return (
     <motion.div
       className="h-full flex flex-col"
@@ -98,24 +96,17 @@ export function AchievementsPage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-      <PageHeader
-        title="Achievements"
-        subtitle={subtitle}
-        icon={<Award className="size-4" />}
-        actions={
-          <ProgressRing
-            value={earnedCount / achievements.length}
-            size={44}
-            stroke={4}
-            valueClass="text-primary"
-          >
-            <span className="text-[10px] tabular font-medium">
-              {Math.round((earnedCount / achievements.length) * 100)}%
-            </span>
-          </ProgressRing>
-        }
-      />
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+        <ProgressRing
+          value={earnedCount / achievements.length}
+          size={44}
+          stroke={4}
+          valueClass="text-primary"
+        >
+          <span className="text-[10px] tabular font-medium">
+            {Math.round((earnedCount / achievements.length) * 100)}%
+          </span>
+        </ProgressRing>
       </motion.div>
 
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 pb-6 flex flex-col gap-4 flex-1 min-h-0">

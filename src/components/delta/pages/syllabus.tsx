@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import {
-  GlassCard, PageHeader, Pill, ProgressRing, EmptyState,
+  GlassCard, Pill, ProgressRing, EmptyState,
 } from '@/components/delta/ui'
 import { useStore, useSubjectProgress } from '@/lib/store'
 import { SUBJECTS, chapters, videos, type SubjectId } from '@/lib/mock-data'
@@ -83,16 +83,8 @@ export function SyllabusPage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-      <PageHeader
-        title="Syllabus"
-        subtitle="Track chapter-wise progress"
-        icon={<Layers className="size-4" />}
-      />
-      </motion.div>
-
       {/* Overall summary row */}
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5">
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 pt-5">
         <GlassCard className="p-4 grid grid-cols-2 sm:grid-cols-4 gap-4">
           <SummaryStat
             label="Topics mastered"

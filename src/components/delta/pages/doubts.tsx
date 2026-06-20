@@ -8,7 +8,7 @@ import {
   RotateCcw, Bot,
 } from 'lucide-react'
 import {
-  GlassCard, PageHeader, Pill, Avatar, EmptyState,
+  GlassCard, Pill, Avatar, EmptyState,
   PrimaryButton, GhostButton, Badge, Segmented,
 } from '@/components/delta/ui'
 import { useStore, type DoubtItem } from '@/lib/store'
@@ -179,20 +179,13 @@ export function DoubtsPage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-      <PageHeader
-        title="Doubts"
-        subtitle="Ask, answer, learn — powered by Delta AI Tutor"
-        icon={<MessageCircleQuestion className="size-4" />}
-        actions={
-          <PrimaryButton
-            onClick={() => setComposing(true)}
-            className="px-4 py-2 text-sm"
-          >
-            <Plus className="size-4" /> Ask a Doubt
-          </PrimaryButton>
-        }
-      />
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+        <PrimaryButton
+          onClick={() => setComposing(true)}
+          className="px-4 py-2 text-sm"
+        >
+          <Plus className="size-4" /> Ask a Doubt
+        </PrimaryButton>
       </motion.div>
 
       {/* AI banner */}

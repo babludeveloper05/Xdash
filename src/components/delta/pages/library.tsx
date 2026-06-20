@@ -4,12 +4,12 @@ import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen,
-  Search, Play, Check, Library as LibraryIcon,
+  Search, Play, Check,
   Sparkles, X, GraduationCap,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import {
-  GlassCard, PageHeader, Pill, Segmented, EmptyState,
+  GlassCard, Pill, Segmented, EmptyState,
 } from '@/components/delta/ui'
 import { useStore } from '@/lib/store'
 import {
@@ -234,14 +234,6 @@ export function LibraryPage() {
         initial="initial"
         animate="animate"
       >
-        <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-          <PageHeader
-            title="Library"
-            subtitle={subtitle}
-            icon={<LibraryIcon className="size-4" />}
-          />
-        </motion.div>
-
         {/* Continue watching rail */}
         {continueWatching.length > 0 && (
           <motion.section

@@ -7,7 +7,7 @@ import {
   ChevronRight, Sparkles, History,
 } from 'lucide-react'
 import {
-  GlassCard, PageHeader, PrimaryButton, GhostButton,
+  GlassCard, PrimaryButton, GhostButton,
   IconButton, Avatar, EmptyState, Divider, Badge,
 } from '@/components/delta/ui'
 import { useStore } from '@/lib/store'
@@ -48,26 +48,21 @@ export function LivePage() {
 
   return (
     <div className="h-full flex flex-col gap-4">
-      <PageHeader
-        title="Live"
-        subtitle="Real-time classes & sessions"
-        icon={<Radio className="size-4" />}
-        actions={
-          live ? (
-            <div
-              className="flex items-center gap-2 rounded-full bg-red-500/15 border border-red-500/30 px-3 py-1.5 text-[11px] font-medium text-red-300"
-              role="status"
-              aria-live="polite"
-            >
-              <span className="size-1.5 rounded-full bg-red-400 live-dot" aria-hidden />
-              <span className="tabular">{live.viewers.toLocaleString()}</span>
-              <span className="hidden sm:inline">watching</span>
-            </div>
-          ) : (
-            <Badge tone="default">No live session</Badge>
-          )
-        }
-      />
+      <div className="flex items-center justify-end gap-2 px-5 pt-5">
+        {live ? (
+          <div
+            className="flex items-center gap-2 rounded-full bg-red-500/15 border border-red-500/30 px-3 py-1.5 text-[11px] font-medium text-red-300"
+            role="status"
+            aria-live="polite"
+          >
+            <span className="size-1.5 rounded-full bg-red-400 live-dot" aria-hidden />
+            <span className="tabular">{live.viewers.toLocaleString()}</span>
+            <span className="hidden sm:inline">watching</span>
+          </div>
+        ) : (
+          <Badge tone="default">No live session</Badge>
+        )}
+      </div>
 
       <div className="flex-1 min-h-0 overflow-y-auto scroll-thin px-5 pb-5">
         <motion.div

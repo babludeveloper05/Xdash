@@ -2,13 +2,13 @@
 
 import {
   Flame, Clock, Trophy, Target, Award, MapPin, Calendar, Pencil, Atom,
-  FlaskConical, Sigma, TrendingUp, BookOpen, User, GraduationCap,
+  FlaskConical, Sigma, TrendingUp, BookOpen, GraduationCap,
   ArrowRight, Footprints, Zap, Swords, Moon, Medal, Sparkles, Dna, Cpu,
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
-  GlassCard, PageHeader, ProgressRing, Avatar, GhostButton,
+  GlassCard, ProgressRing, Avatar, GhostButton,
 } from '@/components/delta/ui'
 import { useStore, useSubjectProgress, useTotalHours } from '@/lib/store'
 import {
@@ -70,17 +70,10 @@ export function ProfilePage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-      <PageHeader
-        title="Profile"
-        subtitle="Your study identity and progress at a glance"
-        icon={<User className="size-4" />}
-        actions={
-          <GhostButton onClick={() => setTab('settings')}>
-            <Pencil className="size-3.5" /> Edit profile
-          </GhostButton>
-        }
-      />
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+        <GhostButton onClick={() => setTab('settings')}>
+          <Pencil className="size-3.5" /> Edit profile
+        </GhostButton>
       </motion.div>
 
       <motion.div

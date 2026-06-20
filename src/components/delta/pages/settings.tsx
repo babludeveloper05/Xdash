@@ -4,10 +4,10 @@ import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   User, Bell, Target, RotateCcw, Check, Trash2, Sparkles,
-  Settings as SettingsIcon, Calendar, AlertTriangle, Palette, Crown,
+  Calendar, AlertTriangle, Palette, Crown,
 } from 'lucide-react'
 import {
-  GlassCard, PageHeader, Toggle, Avatar, PrimaryButton, GhostButton, Badge,
+  GlassCard, Toggle, Avatar, PrimaryButton, GhostButton, Badge,
 } from '@/components/delta/ui'
 import { useStore, type UserProfile } from '@/lib/store'
 import { cn } from '@/lib/utils'
@@ -80,19 +80,12 @@ export function SettingsPage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-      <PageHeader
-        title="Settings"
-        subtitle="Customize your experience"
-        icon={<SettingsIcon className="size-4" />}
-        actions={
-          savedFlash ? (
-            <span className="inline-flex items-center gap-1.5 text-xs text-success animate-in fade-in duration-200">
-              <Check className="size-4" /> Saved
-            </span>
-          ) : undefined
-        }
-      />
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+        {savedFlash ? (
+          <span className="inline-flex items-center gap-1.5 text-xs text-success animate-in fade-in duration-200">
+            <Check className="size-4" /> Saved
+          </span>
+        ) : undefined}
       </motion.div>
 
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 pb-6 max-w-3xl mx-auto flex flex-col gap-5">

@@ -7,7 +7,7 @@ import {
   Bar, BarChart, CartesianGrid, Cell,
 } from 'recharts'
 import { Clock, TrendingUp, Flame, Target, Award, Activity, BookOpen } from 'lucide-react'
-import { GlassCard, PageHeader, MetricCard } from '@/components/delta/ui'
+import { GlassCard, MetricCard } from '@/components/delta/ui'
 import { useStore, useSubjectProgress, useTotalHours } from '@/lib/store'
 import { studyHours, SUBJECTS } from '@/lib/mock-data'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -87,13 +87,6 @@ export function AnalyticsPage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-        <PageHeader
-          title="Analytics"
-          subtitle="Your performance across every subject and test"
-          icon={<Activity className="size-4" />}
-        />
-      </motion.div>
       {/*
         Nested stagger container: animates as a unit after the header, then
         cascades its own children (KPIs → charts → mastery) for a layered reveal.
@@ -101,7 +94,7 @@ export function AnalyticsPage() {
       */}
       <motion.div
         variants={staggerContainer(reduce)}
-        className="px-5 pb-6 flex flex-col gap-4"
+        className="px-5 pb-6 pt-5 flex flex-col gap-4"
       >
         {/* KPI row */}
         <motion.div

@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
-import { Crown, TrendingUp, TrendingDown, Minus, Flame, Search, Medal, ArrowUpRight } from 'lucide-react'
-import { GlassCard, PageHeader, Pill, Avatar, PrimaryButton, EmptyState } from '@/components/delta/ui'
+import { Crown, TrendingUp, TrendingDown, Minus, Flame, Search, ArrowUpRight } from 'lucide-react'
+import { GlassCard, Pill, Avatar, PrimaryButton, EmptyState } from '@/components/delta/ui'
 import { leaderboard } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -51,21 +51,14 @@ export function LeaderboardPage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-      <PageHeader
-        title="Leaderboard"
-        subtitle={`${leaderboard.length.toLocaleString()} learners · ${me.batch}`}
-        icon={<Medal className="size-4" />}
-        actions={
-          <div className="flex items-center gap-1.5 flex-wrap justify-end">
-            {SCOPES.map((s) => (
-              <Pill key={s} active={scope === s} onClick={() => setScope(s)}>
-                {s}
-              </Pill>
-            ))}
-          </div>
-        }
-      />
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+        <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {SCOPES.map((s) => (
+            <Pill key={s} active={scope === s} onClick={() => setScope(s)}>
+              {s}
+            </Pill>
+          ))}
+        </div>
       </motion.div>
 
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="px-5 pb-6 flex flex-col gap-4 flex-1 min-h-0">

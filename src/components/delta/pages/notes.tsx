@@ -7,7 +7,7 @@ import {
   Pencil, Clock, Sparkles,
 } from 'lucide-react'
 import {
-  GlassCard, PageHeader, Pill, PrimaryButton, GhostButton, Badge, EmptyState,
+  GlassCard, Pill, PrimaryButton, GhostButton, Badge, EmptyState,
 } from '@/components/delta/ui'
 import { useStore } from '@/lib/store'
 import { type NoteItem } from '@/lib/mock-data'
@@ -118,17 +118,10 @@ export function NotesPage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-        <PageHeader
-          title="Notes"
-          subtitle={`${notes.length} notes · ${allTags.length - 1} tags`}
-          icon={<StickyNote className="size-5" />}
-          actions={
-            <PrimaryButton onClick={openNew}>
-              <Plus className="size-3.5" /> New note
-            </PrimaryButton>
-          }
-        />
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+        <PrimaryButton onClick={openNew}>
+          <Plus className="size-3.5" /> New note
+        </PrimaryButton>
       </motion.div>
 
       {/* Quick scratch pad — synced with store */}

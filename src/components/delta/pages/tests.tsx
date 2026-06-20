@@ -8,7 +8,7 @@ import {
   Trophy, Target, Timer, ArrowLeft, CircleCheck, CircleDot, Bookmark, Inbox,
 } from 'lucide-react'
 import {
-  GlassCard, PageHeader, Pill, PrimaryButton, GhostButton, IconButton,
+  GlassCard, Pill, PrimaryButton, GhostButton, IconButton,
   ProgressRing, MetricCard, Badge, EmptyState,
 } from '@/components/delta/ui'
 import { useStore, type HistoryRow } from '@/lib/store'
@@ -127,17 +127,10 @@ function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void;
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-        <PageHeader
-          title="Tests"
-          subtitle={`${dueCount} due · ${tests.length} available · ${history.length} taken`}
-          icon={<FileText className="size-5" />}
-          actions={
-            <GhostButton onClick={onHistory}>
-              <History className="size-3.5" /> History
-            </GhostButton>
-          }
-        />
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+        <GhostButton onClick={onHistory}>
+          <History className="size-3.5" /> History
+        </GhostButton>
       </motion.div>
 
       {/* Stat row */}
@@ -694,16 +687,11 @@ function HistoryView({
 
   return (
     <div className="h-full flex flex-col gap-4">
-      <PageHeader
-        title="Test History"
-        subtitle={`${history.length} attempts recorded`}
-        icon={<History className="size-5" />}
-        actions={
-          <IconButton label="Back to tests" onClick={onBack}>
-            <ArrowLeft className="size-4" />
-          </IconButton>
-        }
-      />
+      <div className="flex items-center justify-end gap-2 px-5 pt-5">
+        <IconButton label="Back to tests" onClick={onBack}>
+          <ArrowLeft className="size-4" />
+        </IconButton>
+      </div>
 
       <GlassCard className="flex-1 overflow-hidden flex flex-col min-h-0">
         <div className="grid grid-cols-12 gap-3 px-4 py-3 border-b border-border text-[11px] uppercase tracking-wider text-muted-foreground">

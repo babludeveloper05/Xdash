@@ -3,14 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
-  GripVertical, X, Plus, RotateCcw, Check, Trash2, Move, Sparkles,
+  GripVertical, X, Plus, RotateCcw, Check, Trash2, Move,
   Search, LayoutGrid, ChevronLeft, ChevronRight, ChevronUp, ChevronDown,
   type LucideIcon,
 } from 'lucide-react'
 import { useStore, type WidgetState } from '@/lib/store'
 import { WIDGET_REGISTRY } from './widget-content'
 import {
-  GlassCard, PageHeader, GhostButton, PrimaryButton, EmptyState,
+  GlassCard, GhostButton, PrimaryButton, EmptyState,
 } from '../ui'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -214,38 +214,31 @@ export function PlaygroundPage() {
       initial="initial"
       animate="animate"
     >
-      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}>
-      <PageHeader
-        title="Playground"
-        subtitle="Arrange your dashboard"
-        icon={<Sparkles className="size-4" />}
-        actions={
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setGridMode(!gridMode)}
-              aria-pressed={gridMode}
-              className={cn(
-                'inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs transition-colors',
-                gridMode
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'bg-white/5 hover:bg-white/10'
-              )}
-            >
-              {gridMode ? <LayoutGrid className="size-3.5" /> : <Move className="size-3.5" />}
-              {gridMode ? 'Grid' : 'Free'}
-            </button>
-            <GhostButton onClick={resetWidgets}>
-              <RotateCcw className="size-3.5" /> Reset
-            </GhostButton>
-            <GhostButton onClick={() => setPickerOpen(true)}>
-              <Plus className="size-3.5" /> Add widget
-            </GhostButton>
-            <PrimaryButton onClick={() => setTab('home')}>
-              <Check className="size-3.5" /> Done
-            </PrimaryButton>
-          </div>
-        }
-      />
+      <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setGridMode(!gridMode)}
+            aria-pressed={gridMode}
+            className={cn(
+              'inline-flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-xs transition-colors',
+              gridMode
+                ? 'bg-primary text-primary-foreground border-primary'
+                : 'bg-white/5 hover:bg-white/10'
+            )}
+          >
+            {gridMode ? <LayoutGrid className="size-3.5" /> : <Move className="size-3.5" />}
+            {gridMode ? 'Grid' : 'Free'}
+          </button>
+          <GhostButton onClick={resetWidgets}>
+            <RotateCcw className="size-3.5" /> Reset
+          </GhostButton>
+          <GhostButton onClick={() => setPickerOpen(true)}>
+            <Plus className="size-3.5" /> Add widget
+          </GhostButton>
+          <PrimaryButton onClick={() => setTab('home')}>
+            <Check className="size-3.5" /> Done
+          </PrimaryButton>
+        </div>
       </motion.div>
 
       {widgets.length === 0 ? (

@@ -641,3 +641,42 @@ Stage Summary:
 - Doubts + upvotes now persist across tab switches and reloads (bonus fix from the analysis).
 - Demonstrates the LLM skill end-to-end: backend SDK usage, server-side-only enforcement, structured pedagogical prompting, graceful loading/error UX, optimistic UI updates.
 - No new dependencies — z-ai-web-dev-sdk was already installed.
+
+---
+Task ID: header-makeover-actions
+Agent: general-purpose (header makeover for action pages)
+Task: Remove PageHeader chrome from 8 pages, preserve actions in slim rows
+
+Work Log:
+- Read prior worklog entries to confirm the pattern used for the already-converted headerless pages (home/syllabus/library/analytics): title+subtitle+icon dropped; for action pages a slim `flex items-center justify-end gap-2 px-5 pt-5` row is added as a `staggerItem` child; for no-action pages the entire block is removed and `pt-5` is added to the next content section.
+- Grepped `src/components/delta/pages/` for `PageHeader` to enumerate the 8 files (9 PageHeader instances total — tests.tsx has two: AvailableView + HistoryView). Confirmed the 4 already-done files (home/syllabus/library/analytics/widget-content) had zero PageHeader matches.
+- For each of the 8 target files, mapped the icon usage to decide import-cleanup:
+  * tests.tsx: FileText (used at MetricCard + elsewhere) and History (kept — used by the relocated GhostButton) → keep both. Remove only `PageHeader` from ui import.
+  * notes.tsx: StickyNote (used at EmptyState elsewhere) → keep. Remove only `PageHeader`.
+  * leaderboard.tsx: Medal used only in header → REMOVE from lucide import. Remove `PageHeader`.
+  * achievements.tsx: Award used only in header → REMOVE from lucide import. Remove `PageHeader`. Also removed the now-orphan `const subtitle = ...` variable (it was only consumed by the PageHeader subtitle prop).
+  * live.tsx: Radio used in live cards → keep. Remove only `PageHeader`. (Note: live.tsx's PageHeader was a direct child of a plain `<div>`, not inside a stagger container, so the slim action row is a plain `<div>` not a `motion.div`.)
+  * doubts.tsx: MessageCircleQuestion used in stats + list elsewhere → keep. Remove only `PageHeader`.
+  * profile.tsx: User used only in header → REMOVE from lucide import. Remove `PageHeader`.
+  * playground.tsx: Sparkles used only in header → REMOVE from lucide import. Remove `PageHeader`.
+  * settings.tsx: `Settings as SettingsIcon` used only in header → REMOVE from lucide import. Remove `PageHeader`.
+- For each file, used MultiEdit to (a) clean the lucide import if needed, (b) clean the `@/components/delta/ui` import to drop `PageHeader`, and (c) replace the `<motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)}><PageHeader .../></motion.div>` block with a `<motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">{exactActionsJSX}</motion.div>` row. The actions JSX was copied verbatim — no className, prop, or logic changes.
+- For live.tsx and tests.tsx HistoryView (both outside a motion stagger container), used a plain `<div className="flex items-center justify-end gap-2 px-5 pt-5">` to match the surrounding non-animated structure.
+- Preserved the conditional action logic where present (settings.tsx `savedFlash ? (...) : undefined`; live.tsx `live ? (...) : (<Badge>No live session</Badge>)`).
+- Verified no orphan variable references: `allTags`/`notes.length` still used elsewhere in notes.tsx; `me.batch` still used in leaderboard.tsx; `leaderboard.length` was only in the removed subtitle but the `leaderboard` import remains used.
+
+Verification:
+- `grep -rn "PageHeader" src/components/delta/pages/` → ZERO matches (all 9 PageHeader instances across 8 files removed).
+- `grep -rn "PageHeader" src/components/delta/ui.tsx` → definition still present at line 37 (left intact per scope rules; it's just no longer consumed by any page).
+- `npx tsc --noEmit` → only pre-existing errors remain (analysis/, examples/, skills/, and the pre-existing `GhostButton` `disabled` prop error in doubts.tsx at line 482 — was line 489 before this task, shifted by the 7 lines removed from the PageHeader block). Confirmed the doubts.tsx error exists on `git stash` of my changes — i.e., not introduced by this task.
+- `tail -20 dev.log` → clean compiles (`✓ Compiled in Nms`), zero error lines after edits. Curl to localhost:3000 returns 200.
+
+Stage Summary:
+- 8 files modified (9 PageHeader removals): `tests.tsx` (2 — AvailableView + HistoryView), `notes.tsx`, `leaderboard.tsx`, `achievements.tsx`, `live.tsx`, `doubts.tsx`, `profile.tsx`, `playground.tsx`, `settings.tsx`.
+- Icons removed from lucide imports (header-only usage): `Medal` (leaderboard), `Award` (achievements), `User` (profile), `Sparkles` (playground), `Settings as SettingsIcon` (settings).
+- Icons kept in lucide imports (used elsewhere): `FileText` + `History` (tests), `StickyNote` (notes), `Radio` (live), `MessageCircleQuestion` (doubts), `Pencil` (profile/settings). `Plus`/`Check` etc. kept everywhere they were already imported.
+- `PageHeader` removed from every ui import; the `PageHeader` definition in `src/components/delta/ui.tsx` is untouched (out of scope per rules — could be cleaned up in a future pass).
+- All action JSX relocated verbatim (no className/prop/logic changes); slim rows use `flex items-center justify-end gap-2 px-5 pt-5`. Inside-stagger pages use `motion.div` with `staggerItem`/`itemTransition`; the two non-stagger contexts (live.tsx, tests HistoryView) use plain `<div>` matching the existing structure.
+- Conditional actions preserved: settings.tsx still renders the Saved badge only when `savedFlash` is true; live.tsx still shows the live-status pill vs the "No live session" Badge.
+- One small cleanup beyond imports: removed the orphan `const subtitle = ...` line in achievements.tsx (only consumer was the PageHeader subtitle prop; would have triggered unused-var lint).
+- No issues encountered. Pre-existing doubts.tsx GhostButton-disabled type error is unrelated and was not introduced here (verified via git stash).
