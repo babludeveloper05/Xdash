@@ -142,42 +142,51 @@ export function AppShell() {
       />
       <TopNav />
       {/*
-        Default `sync` mode (not `wait`) keeps the outgoing page mounted while
-        the incoming one animates in — overlap, no cut. Both pages are
-        absolutely positioned so they stack naturally during the handoff.
+        3D perspective container — wraps AnimatePresence so translateZ on the
+        pages creates real depth (the camera-move effect). perspective: 1200px
+        gives a natural focal length; perspective-origin centered so the
+        receding page shrinks toward the middle of the viewport. The inner
+        motion.main elements carry transformStyle: preserve-3d so they
+        participate in the 3D space.
 
-        A parallax background layer sits BEHIND each page inside the same
-        AnimatePresence. It uses `parallaxBgVariants` which drift at ~0.35x
-        the page slide rate — so during a transition the foreground moves
-        fast and the background moves slow, creating multi-layer parallax
-        depth (the core parallax illusion).
+        Axis model (per the brief):
+          X (depth, front/back)  → translateZ  — camera moves back here
+          Y (sideways)           → translateX  — directional parallax
+          Z (top/bottom)         → translateY  — vertical drift
       */}
-      <AnimatePresence custom={ctx} initial={false}>
-        <motion.div
-          key={`bg-${activeTab}`}
-          custom={ctx}
-          variants={parallaxBgVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          transition={pageTransition(ctx.reduce)}
-          className="absolute inset-0 pointer-events-none -z-10"
-          aria-hidden
-        />
-        <motion.main
-          ref={mainRef}
-          key={activeTab}
-          custom={ctx}
-          variants={pageVariants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
-          transition={pageTransition(ctx.reduce)}
-          className="absolute inset-x-0 bottom-0 top-16 overflow-y-auto overflow-x-hidden scroll-thin"
-        >
-          <ActivePage />
-        </motion.main>
-      </AnimatePresence>
+      <div
+        className="absolute inset-x-0 bottom-0 top-16"
+        style={{ perspective: 1200, perspectiveOrigin: 'center center' }}
+      >
+        <AnimatePresence custom={ctx} initial={false}>
+          <motion.div
+            key={`bg-${activeTab}`}
+            custom={ctx}
+            variants={parallaxBgVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition(ctx.reduce)}
+            className="absolute inset-0 pointer-events-none"
+            style={{ transformStyle: 'preserve-3d', backfaceVisibility: 'hidden' }}
+            aria-hidden
+          />
+          <motion.main
+            ref={mainRef}
+            key={activeTab}
+            custom={ctx}
+            variants={pageVariants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            transition={pageTransition(ctx.reduce)}
+            className="absolute inset-0 overflow-y-auto overflow-x-hidden scroll-thin"
+            style={{ transformStyle: 'preserve-3d', backfaceVisibility: 'hidden' }}
+          >
+            <ActivePage />
+          </motion.main>
+        </AnimatePresence>
+      </div>
       <Spotlight />
       <Onboarding />
       <VideoLayer />

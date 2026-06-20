@@ -797,3 +797,39 @@ Stage Summary:
 - Two parallax states implemented: (1) page switching — depth scale dolly + multi-layer background drift, (2) scroll — ambient glow drift + spring-smoothed progress bar.
 - All effects respect `prefers-reduced-motion` (collapse to opacity-only / no drift).
 - No new dependencies — uses framer-motion's `useMotionValue`/`useSpring`/`useTransform` which were already available.
+
+---
+Task ID: 3d-space-transition
+Agent: main (Z.ai Code)
+Task: Redefine the page transition as a true 3D space where X=front/back (depth), Y=sideways, Z=top/bottom. The camera moves back along X (current page recedes), and the new page appears via parallax from a deeper layer.
+
+Work Log:
+- **Redefinined the axis model** (`src/lib/motion.ts`):
+  - X axis (depth, front/back) → `translateZ` — the camera move. PAGE_DEPTH = 700px.
+  - Y axis (sideways, left/right) → `translateX` — directional parallax (follows nav direction). PAGE_DISTANCE = 48px.
+  - Z axis (top/bottom, up/down) → `translateY` — vertical drift. PAGE_RISE = 16px.
+  - **pageVariants**: ENTER starts at z:−700 (deep in background, small via perspective), opacity 0, with sideways + vertical offset; animates to z:0 (forward to viewer). EXIT recedes to z:−700 (camera moves back, page shrinks into distance), opacity 0, drifting sideways + down. This is the "camera moves back, new appears via parallax" effect — real 3D depth, not a 2D scale approximation.
+  - **parallaxBgVariants**: sits at z:−350 (halfway depth) so it moves at a different apparent rate than the foreground page — the multi-layer differential that creates the parallax illusion in 3D space.
+  - All variants collapse to opacity-only under `prefers-reduced-motion`.
+
+- **Added 3D perspective container** (`src/components/delta/app-shell.tsx`):
+  - Wrapped AnimatePresence in a div with `perspective: 1200px` + `perspectiveOrigin: center center` so `translateZ` on pages creates real visual depth (receding pages shrink toward the center, approaching pages grow).
+  - Added `transformStyle: preserve-3d` + `backfaceVisibility: hidden` to both the motion.main and the parallax bg motion.div so they participate in the 3D space.
+  - Kept the scroll progress bar + scroll parallax ambient glow from the previous task (they work alongside the 3D transition).
+  - Kept the manual scroll listener (re-attaches on activeTab change).
+
+Agent Browser verification:
+- **Perspective container confirmed**: `perspective: 1200px` on the wrapper div.
+- **3D transition confirmed via MutationObserver**: captured real `matrix3d` transforms during a Home→Library transition:
+  - Entering page: `matrix3d(1,0,0,0, 0,1,0,0, 0,0,1,0, 48, -16, -700, 1)` → translateX:48 (Y sideways), translateY:-16 (Z up), **translateZ:-700** (X deep in background) ✓
+  - Parallax background: `matrix3d(..., 19.2, 0, -350, 1)` → at translateZ:-350 (halfway depth, multi-layer parallax) ✓
+  - Settled state: `matrix3d(..., 0, 0, -350, 1)` → background at its resting -350 depth ✓
+- **Scroll parallax still works**: scrolled Library 600px → progress bar `scaleX: 0.026`, scroll bg `translateY: 1.58px` ✓
+- 0 console errors, clean compiles, HTTP 200.
+
+Stage Summary:
+- 2 files modified: `src/lib/motion.ts` (3D axis model + translateZ variants), `src/components/delta/app-shell.tsx` (perspective container + preserve-3d).
+- The transition is now a true 3D space: the camera moves back along X (current page recedes into the screen, shrinking via perspective), and the new page appears via parallax (comes forward from depth at z:−700 to z:0). The parallax background sits at z:−350 (halfway) for multi-layer depth.
+- Y axis (sideways) follows nav direction; Z axis (top/bottom) adds a subtle vertical drift so the receding page "falls away" downward and the entering page "rises" into place.
+- All effects respect `prefers-reduced-motion` (collapse to opacity-only).
+- No new dependencies — uses framer-motion's `z` motion value (maps to translateZ) + CSS `perspective`.

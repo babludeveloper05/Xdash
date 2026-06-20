@@ -57,10 +57,28 @@ export const reducedTransition: Transition = {
   ease: [0.4, 0, 0.2, 1],
 }
 
-// --- Page transition (direction-aware) --------------------------------------
+// --- Page transition (direction-aware, true 3D) -----------------------------
 
-/** Pixel distance for the directional page slide. */
-const PAGE_DISTANCE = 64
+/**
+ * 3D axis model for page transitions:
+ *   X axis = front/back (depth)        → translateZ  (the camera move)
+ *   Y axis = sideways (left/right)     → translateX  (directional parallax)
+ *   Z axis = top/bottom (up/down)      → translateY  (vertical drift)
+ *
+ * The "camera moves back" effect: the exiting page recedes along −X (negative
+ * translateZ = into the screen, away from the viewer) while the entering page
+ * comes forward from −X toward 0. With `perspective` on the container, the
+ * receding page shrinks and the approaching page grows — real 3D depth, not a
+ * 2D scale approximation. The new page thus "appears via parallax" from a
+ * deeper layer.
+ */
+
+/** Depth distance along X (into the screen). The camera-move magnitude. */
+const PAGE_DEPTH = 700
+/** Sideways parallax distance (Y axis). */
+const PAGE_DISTANCE = 48
+/** Vertical drift distance (Z axis). */
+const PAGE_RISE = 16
 
 /**
  * Context passed via AnimatePresence `custom` (and mirrored on the motion.main
@@ -75,39 +93,48 @@ export interface PageTransitionCtx {
 }
 
 /**
- * Page-level variants.
+ * Page-level variants — true 3D parallax transition.
  *
- * The exiting page receives the NEW direction (via the `custom` prop on
- * AnimatePresence) so it exits toward the side the incoming page is entering
- * from — producing one continuous directional sweep with no dead frame.
+ *  ENTER: starts at z: −PAGE_DEPTH (deep in the background, small via
+ *         perspective), opacity 0, with a small sideways + vertical offset.
+ *         Animates to z: 0 (forward to the viewer), full opacity, centered.
  *
- * Parallax depth: alongside the x-slide, a subtle scale dolly makes the
- * incoming page start smaller (further away) and the outgoing page grow as
- * it leaves (passing closer to the viewer). Combined with the slide this
- * reads as a 3D parallax pass-through rather than a flat 2D swap.
+ *  EXIT:  recedes to z: −PAGE_DEPTH (camera moves back, page shrinks into the
+ *         distance), opacity 0, drifting sideways + down as it falls away.
  *
- * Under reduced motion, both enter and exit collapse to a plain opacity tween.
+ * The sideways (Y) direction follows nav direction so forward/back feel
+ * distinct. Under reduced motion, collapses to opacity-only.
  */
 export const pageVariants = {
   initial: ({ dir, reduce }: PageTransitionCtx) =>
     reduce
       ? { opacity: 0 }
-      : { opacity: 0, x: dir > 0 ? PAGE_DISTANCE : -PAGE_DISTANCE, scale: 0.96 },
+      : {
+          opacity: 0,
+          z: -PAGE_DEPTH,                                              // X: deep in background
+          x: dir > 0 ? PAGE_DISTANCE : -PAGE_DISTANCE,                // Y: from the side
+          y: -PAGE_RISE,                                               // Z: slightly above
+        },
   animate: ({ reduce }: PageTransitionCtx) =>
-    reduce ? { opacity: 1 } : { opacity: 1, x: 0, scale: 1 },
+    reduce ? { opacity: 1 } : { opacity: 1, x: 0, y: 0, z: 0 },
   exit: ({ dir, reduce }: PageTransitionCtx) =>
     reduce
       ? { opacity: 0 }
-      : { opacity: 0, x: dir > 0 ? -PAGE_DISTANCE : PAGE_DISTANCE, scale: 1.04 },
+      : {
+          opacity: 0,
+          z: -PAGE_DEPTH,                                              // X: recedes into distance
+          x: dir > 0 ? -PAGE_DISTANCE : PAGE_DISTANCE,                // Y: drifts opposite side
+          y: PAGE_RISE,                                                // Z: sinks down
+        },
 } as Variants
 
 /**
- * Parallax background variants — for a depth layer BEHIND the page.
+ * Parallax background variants — a depth layer BEHIND the page.
  *
- * Moves at ~0.35x the page slide distance and with a milder scale, so the
- * background drifts slower than the foreground content during transitions.
- * This multi-layer differential is what creates the parallax depth illusion
- * (foreground fast, background slow = perceived distance).
+ * Sits at z: −PAGE_DEPTH * 0.5 (halfway between the viewer and the receded
+ * page position) so it moves at a different apparent rate than the foreground
+ * page — the multi-layer differential that creates the parallax illusion in
+ * 3D space. Drifts sideways at ~0.4x the page's Y-axis distance.
  *
  * Under reduced motion, collapses to opacity-only.
  */
@@ -115,13 +142,21 @@ export const parallaxBgVariants = {
   initial: ({ dir, reduce }: PageTransitionCtx) =>
     reduce
       ? { opacity: 0 }
-      : { opacity: 0, x: dir > 0 ? PAGE_DISTANCE * 0.35 : -PAGE_DISTANCE * 0.35, scale: 1.015 },
+      : {
+          opacity: 0,
+          z: -PAGE_DEPTH * 0.5,
+          x: dir > 0 ? PAGE_DISTANCE * 0.4 : -PAGE_DISTANCE * 0.4,
+        },
   animate: ({ reduce }: PageTransitionCtx) =>
-    reduce ? { opacity: 1 } : { opacity: 1, x: 0, scale: 1 },
+    reduce ? { opacity: 1 } : { opacity: 1, x: 0, z: -PAGE_DEPTH * 0.5 },
   exit: ({ dir, reduce }: PageTransitionCtx) =>
     reduce
       ? { opacity: 0 }
-      : { opacity: 0, x: dir > 0 ? -PAGE_DISTANCE * 0.35 : PAGE_DISTANCE * 0.35, scale: 1.015 },
+      : {
+          opacity: 0,
+          z: -PAGE_DEPTH * 0.5,
+          x: dir > 0 ? -PAGE_DISTANCE * 0.4 : PAGE_DISTANCE * 0.4,
+        },
 } as Variants
 
 /** Resolve the transition for a page based on the reduced-motion flag. */
