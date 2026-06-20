@@ -1,14 +1,15 @@
 'use client'
 
 import { motion, useReducedMotion } from 'framer-motion'
-import { useStore, type WidgetState } from '@/lib/store'
+import { useStore } from '@/lib/store'
 import { WIDGET_REGISTRY } from './widget-content'
 import { GlassCard, PrimaryButton, EmptyState } from '../ui'
 import { Sparkles, LayoutGrid, Pencil } from 'lucide-react'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
 export function HomePage() {
-  const { widgets, gridMode, setTab } = useStore()
+  const widgets = useStore((s) => s.widgets)
+  const setTab = useStore((s) => s.setTab)
   const reduce = useReducedMotion() ?? false
   const canvasHeight = widgets.reduce((m, w) => Math.max(m, w.y + w.h), 0) + 56
 
@@ -30,80 +31,49 @@ export function HomePage() {
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex-1 min-h-0">
         {widgets.length === 0 ? (
           <EmptyDashboard onOpen={() => setTab('playground')} />
-        ) : gridMode ? (
-          <GridDashboard widgets={widgets} />
         ) : (
-          <>
-            {/* lg+ : free-form absolute canvas, centered, horizontal scroll on overflow */}
-            <div className="hidden lg:block w-full overflow-x-auto scroll-thin">
-              <div
-                className="relative mx-auto px-6 py-5"
-                style={{ width: 1448, minHeight: canvasHeight }}
-              >
-                {widgets.map((w, i) => (
-                  <GlassCard
-                    key={w.id}
-                    className="absolute p-4 group delta-widget-enter"
-                    style={{
-                      left: w.x,
-                      top: w.y,
-                      width: w.w,
-                      height: w.h,
-                      zIndex: w.z,
-                      animationDelay: `${Math.min(i * 30, 300)}ms`,
-                    }}
+          /*
+           * Free-form absolute canvas — the only layout.
+           * Widgets are positioned at fixed x/y coordinates on a 1448px-wide
+           * canvas. On viewports narrower than the canvas the container scrolls
+           * horizontally (overflow-x-auto) so the arrangement is preserved at
+           * every screen size rather than collapsing to a grid.
+           */
+          <div className="w-full overflow-x-auto scroll-thin">
+            <div
+              className="relative mx-auto px-6 py-5"
+              style={{ width: 1448, minHeight: canvasHeight }}
+            >
+              {widgets.map((w, i) => (
+                <GlassCard
+                  key={w.id}
+                  className="absolute p-4 group delta-widget-enter"
+                  style={{
+                    left: w.x,
+                    top: w.y,
+                    width: w.w,
+                    height: w.h,
+                    zIndex: w.z,
+                    animationDelay: `${Math.min(i * 30, 300)}ms`,
+                  }}
+                >
+                  <div className="h-full overflow-hidden">
+                    {WIDGET_REGISTRY[w.type]?.render()}
+                  </div>
+                  <button
+                    onClick={() => setTab('playground')}
+                    aria-label="Edit layout in playground"
+                    className="absolute right-2 top-2 z-10 size-6 grid place-items-center rounded-full bg-background/60 border border-border text-muted-foreground opacity-0 group-hover:opacity-100 transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary"
                   >
-                    <div className="h-full overflow-hidden">
-                      {WIDGET_REGISTRY[w.type]?.render()}
-                    </div>
-                    <button
-                      onClick={() => setTab('playground')}
-                      aria-label="Edit layout in playground"
-                      className="absolute right-2 top-2 z-10 size-6 grid place-items-center rounded-full bg-background/60 border border-border text-muted-foreground opacity-0 group-hover:opacity-100 transition-all hover:bg-primary hover:text-primary-foreground hover:border-primary"
-                    >
-                      <Pencil className="size-3" />
-                    </button>
-                  </GlassCard>
-                ))}
-              </div>
+                    <Pencil className="size-3" />
+                  </button>
+                </GlassCard>
+              ))}
             </div>
-
-            {/* Below lg : responsive grid fallback so widgets never clip */}
-            <div className="lg:hidden">
-              <GridDashboard widgets={widgets} />
-            </div>
-          </>
+          </div>
         )}
       </motion.div>
     </motion.div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
-/*  Responsive grid layout (used on mobile, tablet, and grid mode)     */
-/* ------------------------------------------------------------------ */
-
-function GridDashboard({ widgets }: { widgets: WidgetState[] }) {
-  return (
-    <div
-      className="p-4 sm:p-5 grid gap-4 delta-widget-enter"
-      style={{
-        gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 280px), 1fr))',
-      }}
-    >
-      {widgets.map((w, i) => (
-        <GlassCard
-          key={w.id}
-          className="relative p-4 sm:p-5"
-          style={{
-            minHeight: w.type === 'greeting' ? 88 : 200,
-            animationDelay: `${Math.min(i * 30, 300)}ms`,
-          }}
-        >
-          <div className="h-full overflow-hidden">{WIDGET_REGISTRY[w.type]?.render()}</div>
-        </GlassCard>
-      ))}
-    </div>
   )
 }
 
