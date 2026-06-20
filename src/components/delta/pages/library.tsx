@@ -12,7 +12,8 @@ import {
   GlassCard, Pill, Segmented, EmptyState,
 } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
-import { useVirtual } from '@/hooks/use-virtual'
+import { VirtualGrid } from '@/components/delta/virtual'
+import { EmptyStateWrapper } from '@/components/delta/global'
 import { useStore } from '@/lib/store'
 import {
   SUBJECTS, chapters, videos, fmtDuration,
@@ -228,15 +229,6 @@ export function LibraryPage() {
 
   const subtitle = `${videos.length} lectures · ${totalContentHours}h of content · ${completedCount} completed`
 
-  // Virtualize the video grid by row. At the 1440px design width the grid is 4
-  // columns; each card row is ~230px. We window-render rows so 360 videos (90
-  // rows) don't all mount at once.
-  const COLS = 4
-  const rowCount = Math.ceil(filtered.length / COLS)
-  const { containerRef: gridRef, visibleRange: gridRange, totalHeight: gridTotalH, offsetY: gridOffsetY } = useVirtual(rowCount, 230, 4)
-  const [gStart, gEnd] = gridRange
-  const visibleFiltered = filtered.slice(gStart * COLS, (gEnd + 1) * COLS)
-
   return (
     <ScaledPage>
       <motion.div
@@ -368,29 +360,24 @@ export function LibraryPage() {
             </span>
           </div>
 
-          {/* Grid — virtualized by row (360 videos → ~visible window only) */}
-          {filtered.length === 0 ? (
-            <GlassCard className="p-8 mt-3">
-              <EmptyState
-                icon={<GraduationCap className="size-6" />}
-                title="No lectures match"
-                hint="Try a different subject, status, or search term."
-              />
-            </GlassCard>
-          ) : (
-            <div ref={gridRef} className="overflow-y-auto scroll-thin mt-3 pb-6" style={{ maxHeight: 'min(70vh, 620px)' }}>
-              <div style={{ height: gridTotalH, position: 'relative' }}>
-                <div
-                  className="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4 gap-4"
-                  style={{ transform: `translateY(${gridOffsetY}px)` }}
-                >
-                  {visibleFiltered.map((v) => (
-                    <VideoCard key={v.id} video={v} onOpen={() => openTheater(v.id)} />
-                  ))}
-                </div>
-              </div>
-            </div>
-          )}
+          {/* Grid — virtualized via <VirtualGrid> (360 videos → ~visible window) */}
+          <EmptyStateWrapper
+            isEmpty={filtered.length === 0}
+            emptyIcon={<GraduationCap className="size-6" />}
+            emptyTitle="No lectures match"
+            emptyHint="Try a different subject, status, or search term."
+          >
+            <VirtualGrid
+              items={filtered}
+              cols={4}
+              rowHeight={230}
+              maxHeight="min(70vh, 620px)"
+              gridClassName="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4 gap-4"
+              renderItem={(v) => (
+                <VideoCard key={v.id} video={v} onOpen={() => openTheater(v.id)} />
+              )}
+            />
+          </EmptyStateWrapper>
         </motion.div>
       </motion.div>
     </ScaledPage>

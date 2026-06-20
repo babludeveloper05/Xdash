@@ -915,3 +915,43 @@ Stage Summary:
 - Onboarding is now fully customizable: user picks subjects (free-form), chooses which pages appear in their nav (toggle grid with locked Home/Profile/Settings), and customizes appearance (accent hue 0–360°, density, glassmorphism) with a live preview.
 - The appearance applies app-wide instantly via CSS custom property injection — every component that reads --primary/--ring/--chart-*/--card recolors. The nav shows only the user's chosen pages.
 - All preferences persist (Zustand) and can be changed later in Settings (the Settings appearance section is the natural next addition).
+
+---
+Task ID: global-component-layer
+Agent: main (Z.ai Code)
+Task: Rebuild with improved workflow — build global components first, then have pages consume them (instead of page-wise duplicate fixes).
+
+Work Log:
+- **G1. Global lib utilities** (new files):
+  - `src/lib/format.ts` — consolidated `fmtDuration`, `fmtDeadline`, `fmtAgo`, `timeAgo` (previously duplicated in 4 files: mock-data, dashboard-components, doubts, profile)
+  - `src/lib/subjects.ts` — unified subject appearance system (`subjectStyle`, `subjectTone`, `subjectPoster`, `subjectGradient`, `subjectGlow`, `subjectIcon`) consolidating 5 maps + 4 helper functions across library, video-player, syllabus, live, doubts, profile
+
+- **G2. Global layout components** (`src/components/delta/global.tsx` — new):
+  - `<ScrollArea>` — bounded scroll container with consistent maxHeight token (replaces hand-rolled `overflow-y-auto scroll-thin` + arbitrary maxHeight on every page)
+  - `<SectionHeader>` — title + count + action row (replaces the duplicated pattern on 5+ pages)
+  - `<EmptyStateWrapper>` — empty-branch + list (replaces the `{list.length === 0 ? <EmptyState/> : <list/>}` branch on every list page)
+  - `<Field>` — labeled form input (dedupes the identical definition in settings.tsx + onboarding.tsx)
+  - `<FilterBar>` — search + pills + segmented (dedupes the pattern across Library, Tests, Doubts, Notes, Leaderboard — 5 pages)
+
+- **G3. Global virtualization components** (`src/components/delta/virtual.tsx` — new):
+  - `<VirtualList>` — drop-in windowed row list wrapping the `useVirtual` hook. Pages pass `items`, `itemHeight`, `renderItem` — no manual spacer/transform plumbing.
+  - `<VirtualGrid>` — same for CSS grids, virtualizes by row (`cols` items per row).
+
+- **G4. Global data components** (`src/components/delta/data.tsx` — new):
+  - `<DataCard>` — thumbnail/icon + title + meta + badges + stats + action (dedupes VideoCard, TestCard, NoteCard — all "media + title + meta + action" cards)
+  - `<StatBlock>` — label + value + sub + icon + trend (dedupes Stat, StatTile, SummaryStat, ResultStat, MetricCard — 5 stat components)
+
+- **G5. Refactored Leaderboard** to consume `<VirtualList>` — removed the manual `useVirtual` + spacer + transform wiring (~20 lines of plumbing). Page now just declares `<VirtualList items={list} itemHeight={52} renderItem={...} />`. Same windowed rendering (25 rows), much thinner page.
+
+- **G6. Refactored Library** to consume `<VirtualGrid>` + `<EmptyStateWrapper>` — removed the manual row-counting + `useVirtual` + spacer + grid transform wiring. Page now declares `<EmptyStateWrapper isEmpty={...}><VirtualGrid items={filtered} cols={4} rowHeight={230} renderItem={...} /></EmptyStateWrapper>`. Same windowed rendering (48 cards).
+
+Agent Browser verification:
+- Leaderboard: 25 rows rendered (was 1000), windowed via `<VirtualList>` ✓
+- Library: 48 cards rendered (was 360), windowed via `<VirtualGrid>` ✓
+- 0 errors, clean compiles, HTTP 200.
+
+Stage Summary:
+- 4 new files (lib/format, lib/subjects, components/delta/global, components/delta/virtual, components/delta/data) — the global component layer.
+- 2 pages refactored (Leaderboard, Library) to consume global components — much thinner, no duplicate plumbing.
+- The improved workflow is now established: build global → consume in pages. Future fixes happen once in the global component and every page inherits them.
+- Remaining pages (Tests, Doubts, Notes, Syllabus, Profile, Settings) can be refactored to consume `<FilterBar>`, `<DataCard>`, `<StatBlock>`, `<Field>` next — same pattern.

@@ -5,10 +5,10 @@ import { motion, useReducedMotion } from 'framer-motion'
 import { Crown, TrendingUp, TrendingDown, Minus, Flame, Search, ArrowUpRight } from 'lucide-react'
 import { GlassCard, Pill, Avatar, PrimaryButton, EmptyState } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
+import { VirtualList } from '@/components/delta/virtual'
 import { leaderboard } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
-import { useVirtual } from '@/hooks/use-virtual'
 
 const SCOPES = ['All', 'My Batch', 'Cohort', 'Friends'] as const
 type Scope = (typeof SCOPES)[number]
@@ -40,12 +40,6 @@ export function LeaderboardPage() {
     }
     return base
   }, [scope, query, me])
-
-  // Virtualize the list — 1000 rows render as ~20 visible + overscan.
-  // Each leaderboard row is ~52px (py-2.5 content + border).
-  const { containerRef, visibleRange, totalHeight, offsetY } = useVirtual(list.length, 52, 10)
-  const [vStart, vEnd] = visibleRange
-  const visibleList = list.slice(vStart, vEnd + 1)
 
   const podium = list.slice(0, 3)
   // Visual order: 2nd (left), 1st (center), 3rd (right)
@@ -197,8 +191,11 @@ export function LeaderboardPage() {
             <span className="text-right">Score</span>
             <span className="text-right">Δ</span>
           </div>
-          <div ref={containerRef} className="flex-1 min-h-0 overflow-y-auto scroll-thin" style={{ maxHeight: 'min(60vh, 520px)' }}>
-            {list.length === 0 ? (
+          <VirtualList
+            items={list}
+            itemHeight={52}
+            maxHeight="min(60vh, 520px)"
+            emptyState={
               <div className="min-h-[280px] grid place-items-center">
                 <EmptyState
                   icon={<Search className="size-6" />}
@@ -210,75 +207,61 @@ export function LeaderboardPage() {
                   }
                 />
               </div>
-            ) : (
-              /*
-               * Virtualized list: a full-height spacer gives the scrollbar the
-               * correct range, and only the visible window (+ overscan) of rows
-               * is actually rendered. Rows are offset by translateY so they
-               * land at the right scroll position.
-               */
-              <div style={{ height: totalHeight, position: 'relative' }}>
-                <div style={{ transform: `translateY(${offsetY}px)` }}>
-                  {visibleList.map((l) => {
-                    const idx = vStart + visibleList.indexOf(l)
-                    return (
-                  <div
-                    key={l.id}
-                    className={cn(
-                      ROW_GRID,
-                      'items-center px-4 py-2.5 border-b border-border/40 transition-colors',
-                      l.you ? 'bg-primary/10' : 'hover:bg-white/[0.03]'
-                    )}
-                  >
-                  <span
-                    className={cn(
-                      'text-sm tabular text-center',
-                      l.rank <= 3 ? 'text-amber-300 font-semibold' : 'text-muted-foreground'
-                    )}
-                  >
-                    {l.rank}
-                  </span>
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <Avatar name={l.name} size={32} />
-                    <div className="min-w-0">
-                      <p className="text-sm font-medium truncate">
-                        {l.name}
-                        {l.you && <span className="text-[11px] text-primary ml-1">(You)</span>}
-                      </p>
-                      <p className="text-[11px] text-muted-foreground truncate">{l.batch}</p>
-                    </div>
+            }
+            renderItem={(l) => (
+              <div
+                key={l.id}
+                className={cn(
+                  ROW_GRID,
+                  'items-center px-4 py-2.5 border-b border-border/40 transition-colors',
+                  l.you ? 'bg-primary/10' : 'hover:bg-white/[0.03]'
+                )}
+              >
+                <span
+                  className={cn(
+                    'text-sm tabular text-center',
+                    l.rank <= 3 ? 'text-amber-300 font-semibold' : 'text-muted-foreground'
+                  )}
+                >
+                  {l.rank}
+                </span>
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <Avatar name={l.name} size={32} />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium truncate">
+                      {l.name}
+                      {l.you && <span className="text-[11px] text-primary ml-1">(You)</span>}
+                    </p>
+                    <p className="text-[11px] text-muted-foreground truncate">{l.batch}</p>
                   </div>
-                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground justify-center tabular">
-                    <Flame className="size-3 text-amber-300/70" />
-                    {l.streak}
-                  </span>
-                  <span className="text-right text-sm font-medium tabular">
-                    {l.score.toLocaleString()}
-                  </span>
-                  <span className="text-right">
-                    {l.change > 0 ? (
-                      <span className="text-[11px] text-emerald-300 flex items-center gap-0.5 justify-end tabular">
-                        <TrendingUp className="size-3" />
-                        {l.change}
-                      </span>
-                    ) : l.change < 0 ? (
-                      <span className="text-[11px] text-red-300 flex items-center gap-0.5 justify-end tabular">
-                        <TrendingDown className="size-3" />
-                        {Math.abs(l.change)}
-                      </span>
-                    ) : (
-                      <span className="text-[11px] text-muted-foreground flex justify-end">
-                        <Minus className="size-3" />
-                      </span>
-                    )}
-                  </span>
                 </div>
-                    )
-                  })}
-                </div>
+                <span className="flex items-center gap-1 text-[11px] text-muted-foreground justify-center tabular">
+                  <Flame className="size-3 text-amber-300/70" />
+                  {l.streak}
+                </span>
+                <span className="text-right text-sm font-medium tabular">
+                  {l.score.toLocaleString()}
+                </span>
+                <span className="text-right">
+                  {l.change > 0 ? (
+                    <span className="text-[11px] text-emerald-300 flex items-center gap-0.5 justify-end tabular">
+                      <TrendingUp className="size-3" />
+                      {l.change}
+                    </span>
+                  ) : l.change < 0 ? (
+                    <span className="text-[11px] text-red-300 flex items-center gap-0.5 justify-end tabular">
+                      <TrendingDown className="size-3" />
+                      {Math.abs(l.change)}
+                    </span>
+                  ) : (
+                    <span className="text-[11px] text-muted-foreground flex justify-end">
+                      <Minus className="size-3" />
+                    </span>
+                  )}
+                </span>
               </div>
             )}
-          </div>
+          />
         </GlassCard>
       </motion.div>
       </motion.div>
