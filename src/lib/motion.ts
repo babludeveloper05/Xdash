@@ -81,19 +81,47 @@ export interface PageTransitionCtx {
  * AnimatePresence) so it exits toward the side the incoming page is entering
  * from — producing one continuous directional sweep with no dead frame.
  *
+ * Parallax depth: alongside the x-slide, a subtle scale dolly makes the
+ * incoming page start smaller (further away) and the outgoing page grow as
+ * it leaves (passing closer to the viewer). Combined with the slide this
+ * reads as a 3D parallax pass-through rather than a flat 2D swap.
+ *
  * Under reduced motion, both enter and exit collapse to a plain opacity tween.
  */
 export const pageVariants = {
   initial: ({ dir, reduce }: PageTransitionCtx) =>
     reduce
       ? { opacity: 0 }
-      : { opacity: 0, x: dir > 0 ? PAGE_DISTANCE : -PAGE_DISTANCE },
+      : { opacity: 0, x: dir > 0 ? PAGE_DISTANCE : -PAGE_DISTANCE, scale: 0.96 },
   animate: ({ reduce }: PageTransitionCtx) =>
-    reduce ? { opacity: 1 } : { opacity: 1, x: 0 },
+    reduce ? { opacity: 1 } : { opacity: 1, x: 0, scale: 1 },
   exit: ({ dir, reduce }: PageTransitionCtx) =>
     reduce
       ? { opacity: 0 }
-      : { opacity: 0, x: dir > 0 ? -PAGE_DISTANCE : PAGE_DISTANCE },
+      : { opacity: 0, x: dir > 0 ? -PAGE_DISTANCE : PAGE_DISTANCE, scale: 1.04 },
+} as Variants
+
+/**
+ * Parallax background variants — for a depth layer BEHIND the page.
+ *
+ * Moves at ~0.35x the page slide distance and with a milder scale, so the
+ * background drifts slower than the foreground content during transitions.
+ * This multi-layer differential is what creates the parallax depth illusion
+ * (foreground fast, background slow = perceived distance).
+ *
+ * Under reduced motion, collapses to opacity-only.
+ */
+export const parallaxBgVariants = {
+  initial: ({ dir, reduce }: PageTransitionCtx) =>
+    reduce
+      ? { opacity: 0 }
+      : { opacity: 0, x: dir > 0 ? PAGE_DISTANCE * 0.35 : -PAGE_DISTANCE * 0.35, scale: 1.015 },
+  animate: ({ reduce }: PageTransitionCtx) =>
+    reduce ? { opacity: 1 } : { opacity: 1, x: 0, scale: 1 },
+  exit: ({ dir, reduce }: PageTransitionCtx) =>
+    reduce
+      ? { opacity: 0 }
+      : { opacity: 0, x: dir > 0 ? -PAGE_DISTANCE * 0.35 : PAGE_DISTANCE * 0.35, scale: 1.015 },
 } as Variants
 
 /** Resolve the transition for a page based on the reduced-motion flag. */

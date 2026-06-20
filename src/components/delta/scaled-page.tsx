@@ -57,11 +57,16 @@ export function ScaledPage({
   }, [])
 
   return (
-    <div className="w-full h-full overflow-y-auto overflow-x-hidden scroll-thin">
+    <div className="w-full">
       {/*
-        Wrapper: height = scaled content height so the scrollbar range matches
-        the visual content. Width = scaled design width, centered. position:
-        relative so the absolutely-positioned content anchors to it.
+        Wrapper: height = scaled content height so the parent scroll container
+        (the <main> in app-shell) scrolls the correct range. Width = scaled
+        design width, centered. position: relative so the absolutely-positioned
+        content anchors to it.
+
+        Note: this component does NOT handle its own scrolling — the parent
+        <main> is the single scroll container, which lets app-shell track
+        scrollYProgress for the parallax progress bar + background drift.
       */}
       <div
         style={{

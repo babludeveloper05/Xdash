@@ -764,3 +764,36 @@ Stage Summary:
 - Every page now scales proportionally to fit the viewport — the exact desktop layout is preserved at all screen sizes, just scaled down on narrower viewports. No content overflows in either direction at any viewport from 390px to 1440px+.
 - Home uses `useCanvasFit` (scales both width + height, bounded canvas); all other pages use `ScaledPage` (scales width, vertical scroll for tall content).
 - The design layout is fully compromised — zero changes to any page's content, classes, or logic. Only the wrapping/scrolling context changed.
+
+---
+Task ID: parallax-effects
+Agent: main (Z.ai Code)
+Task: Add parallax effects in two states: (1) page switching — depth/scale dolly + multi-layer background drift during transitions, (2) scroll — background glow drift + scroll progress bar.
+
+Work Log:
+- **Transition parallax** (`src/lib/motion.ts`):
+  - Added scale dolly to `pageVariants`: incoming page starts at `scale: 0.96` (further away), outgoing page exits at `scale: 1.04` (passing closer). Combined with the x-slide, this creates a 3D parallax pass-through rather than a flat 2D swap.
+  - Added `parallaxBgVariants`: a background layer variant that drifts at ~0.35x the page slide distance with a milder scale (1.015). This multi-layer differential (foreground fast, background slow) is the core parallax depth illusion.
+
+- **Scroll parallax + transition bg layer** (`src/components/delta/app-shell.tsx`):
+  - Added a scroll progress bar (2px, primary color, spring-smoothed) at the top of the content area that fills as you scroll.
+  - Added a parallax ambient glow background that drifts downward at a fraction of scroll progress (0→60px mapped from 0→1 progress), creating depth behind the content.
+  - Added a per-tab parallax background layer inside AnimatePresence using `parallaxBgVariants` — drifts at 0.35x the page slide rate during transitions for multi-layer depth.
+  - Used a manual scroll listener (SSR-safe) instead of framer-motion's `useScroll({ container })` which had hydration timing issues. Re-attaches on every tab switch (activeTab in deps) since `<main key={activeTab}>` recreates the element.
+  - All parallax collapses to opacity-only under `prefers-reduced-motion`.
+
+- **ScaledPage fix** (`src/components/delta/scaled-page.tsx`):
+  - Removed the internal `overflow-y-auto` scroll container so the `<main>` in app-shell becomes the single scroll container. This is what makes the scroll progress bar + scroll parallax work for all pages (the scroll listener on main now captures actual scroll events).
+
+Agent Browser verification:
+- **Transition parallax**: Used a MutationObserver to capture mid-transition transforms. Confirmed the depth dolly: incoming page at `matrix(0.96, 0, 0, 0.96, 64, 0)` (scale 0.96 + x:64, approaching from distance), outgoing page growing through `matrix(1.01, ...)` → `matrix(1.018, ...)` → `matrix(1.022, ...)` toward scale 1.04 (passing closer to viewer). The multi-layer differential is visible.
+- **Scroll parallax**: Scrolled Library page 800px → progress bar showed `matrix(0.031, 0, 0, 1, 0, 0)` (scaleX = 3.1%, matching 800/25000px content height), parallax bg showed `matrix(1, 0, 0, 1, 0, 1.89)` (translateY = 1.89px, matching 0.031 × 60px max drift). Both effects confirmed working.
+- All parallax layers present: progressBar ✓, parallaxBg ✓, main element ✓.
+- 0 console errors after clean reload (only React DevTools info + HMR connected).
+- Clean HTTP 200 responses, clean compiles.
+
+Stage Summary:
+- 3 files modified: `src/lib/motion.ts` (scale dolly + parallaxBgVariants), `src/components/delta/app-shell.tsx` (scroll progress bar + scroll parallax bg + transition parallax bg layer), `src/components/delta/scaled-page.tsx` (removed internal scroll so main is the single scroll container).
+- Two parallax states implemented: (1) page switching — depth scale dolly + multi-layer background drift, (2) scroll — ambient glow drift + spring-smoothed progress bar.
+- All effects respect `prefers-reduced-motion` (collapse to opacity-only / no drift).
+- No new dependencies — uses framer-motion's `useMotionValue`/`useSpring`/`useTransform` which were already available.
