@@ -28,6 +28,7 @@ import {
   type PageTransitionCtx,
 } from '@/lib/motion'
 import { ThemeVars } from './theme-vars'
+import { AuthModal } from './auth-modal'
 import { useSync } from '@/lib/sync'
 import { useRealtime } from '@/lib/realtime'
 
@@ -66,6 +67,24 @@ export function AppShell() {
   // Realtime connects to the socket.io service for live updates.
   useSync()
   useRealtime()
+
+  // On mount, check if the user is logged in (reads the httpOnly cookie via
+  // the /api/auth/me proxy). If logged in, populate authUser so the nav shows
+  // the user's name + sign-out button instead of the sign-in button.
+  useEffect(() => {
+    fetch('/api/auth/me')
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.user) {
+          useStore.getState().setAuthUser(data.user)
+          // Apply the synced profile if present
+          if (data.user.name) {
+            useStore.getState().setProfile({ name: data.user.name })
+          }
+        }
+      })
+      .catch(() => {/* offline — stay in guest mode */})
+  }, [])
 
   // Scroll progress for the parallax progress bar. Tracks the main scroll
   // container via a manual listener (SSR-safe — framer-motion's useScroll
@@ -200,6 +219,7 @@ export function AppShell() {
       <Spotlight />
       <Onboarding />
       <VideoLayer />
+      <AuthModal />
     </div>
   )
 }

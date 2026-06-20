@@ -4,7 +4,7 @@ import { motion } from 'framer-motion'
 import { useStore, type TabId } from '@/lib/store'
 import { Avatar, IconButton } from './ui'
 import { cn } from '@/lib/utils'
-import { Bell, Search, Triangle } from 'lucide-react'
+import { Bell, Search, Triangle, LogIn, LogOut } from 'lucide-react'
 import { navSpring } from '@/lib/motion'
 
 const ALL_TAB_LABELS: Record<TabId, string> = {
@@ -28,6 +28,9 @@ export function TopNav() {
   const setTab = useStore((s) => s.setTab)
   const setSpotlight = useStore((s) => s.setSpotlight)
   const profileName = useStore((s) => s.profile.name)
+  const authUser = useStore((s) => s.authUser)
+  const setAuthModalOpen = useStore((s) => s.setAuthModalOpen)
+  const setAuthUser = useStore((s) => s.setAuthUser)
   // User-customizable nav: only show tabs the user enabled during onboarding
   // (or in Settings). Falls back to the default 10-tab set if empty (pre-
   // onboarding or legacy users). Profile + Settings are always shown.
@@ -111,6 +114,30 @@ export function TopNav() {
           </IconButton>
           <span className="absolute top-0.5 right-0.5 size-2 rounded-full bg-primary ring-2 ring-background" />
         </div>
+        {authUser ? (
+          <>
+            <span className="hidden sm:inline text-xs text-muted-foreground max-w-[100px] truncate">{authUser.name}</span>
+            <button
+              onClick={async () => {
+                await fetch('/api/auth/logout', { method: 'POST' })
+                setAuthUser(null)
+                window.location.reload()
+              }}
+              aria-label="Sign out"
+              className="grid place-items-center rounded-full size-9 bg-white/5 border border-border text-muted-foreground hover:text-destructive hover:border-destructive/30 transition-colors"
+            >
+              <LogOut className="size-4" />
+            </button>
+          </>
+        ) : (
+          <button
+            onClick={() => setAuthModalOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-full bg-primary text-primary-foreground px-3.5 py-1.5 text-xs font-medium hover:brightness-110 transition-all"
+          >
+            <LogIn className="size-3.5" />
+            <span className="hidden sm:inline">Sign in</span>
+          </button>
+        )}
         <button onClick={() => setTab('profile')} aria-label="Open profile" className="rounded-full ring-offset-2 ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
           <Avatar name={profileName} size={36} />
         </button>

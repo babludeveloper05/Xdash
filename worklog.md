@@ -1088,3 +1088,37 @@ Stage Summary:
 - The offline-first architecture is live: Zustand store is the local source of truth (localStorage), FastAPI is the online sync target (SQLite→Postgres), Socket.io handles real-time events.
 - Auth works (register/login/JWT). Sync endpoint works (full-state push/pull). Real-time service handles live class, leaderboard, and doubt events.
 - Next: wire auth UI (login/register page), seed the DB with the existing mock data, and debug gateway POST routing.
+
+---
+Task ID: auth-ui-and-sync
+Agent: main (Z.ai Code)
+Task: Build the auth UI (login/register modal), Next.js auth proxy routes, wire auth into the sync flow, and verify the full offline-first sync loop.
+
+Work Log:
+- **Auth store slice** (`src/lib/store.ts`): added `authUser`, `setAuthUser`, `authModalOpen`, `setAuthModalOpen` to the Zustand store + interface.
+- **Next.js auth proxy routes** (`src/app/api/auth/`):
+  - `register/route.ts` — POST proxies to FastAPI `/api/auth/register`, sets `delta-token` httpOnly cookie (7-day expiry)
+  - `login/route.ts` — POST proxies to FastAPI `/api/auth/login`, sets cookie
+  - `logout/route.ts` — POST deletes the cookie
+  - `me/route.ts` — GET reads the cookie, verifies with FastAPI `/api/auth/me`, returns the user
+  - `sync/route.ts` — POST proxies to FastAPI `/api/sync` with the Bearer token from the cookie (the client can't read httpOnly cookies, so this proxy forwards the auth header)
+- **Auth modal** (`src/components/delta/auth-modal.tsx`): glassmorphic modal with login/register toggle, email/password/name fields, loading state, error display. On success: stores the user, closes modal, reloads the page (so `/api/auth/me` picks up the cookie + sync runs).
+- **TopNav integration**: shows "Sign in" button when not logged in, shows the user's name + "Sign out" button when logged in.
+- **AppShell integration**: on mount, fetches `/api/auth/me` to check if the user is logged in (reads the httpOnly cookie). If yes, populates `authUser` so the nav updates. Also mounted `<AuthModal />`.
+- **Sync hook updated** (`src/lib/sync.ts`): now checks `/api/auth/me` (not localStorage) to determine if the user is authenticated. Sync only runs when logged in; guest mode stays fully local.
+- **Service persistence** (`mini-services/start-all.sh`): a combined start script that launches both FastAPI (port 8000) and Socket.io (port 3003) with `nohup setsid` so they survive across shell commands. The sandbox was reaping background processes; this script keeps them alive.
+
+Agent Browser verification (full flow):
+1. Register via curl → user created in DB ✓
+2. Login via Next.js proxy → cookie set, user returned ✓
+3. `/api/auth/me` with cookie → returns user ✓
+4. Sync with cookie → note pushed to backend, saved in DB ✓ ("Notes in DB: [('Test note', 'Physics', 'Hello from sync')]")
+5. Browser: clicked "Sign in" → auth modal opened → filled login form → submitted → page reloaded → nav showed "Sign out" ✓
+6. Console showed `[sync] synced at 2026-06-20T21:05:46` — the sync hook ran on login ✓
+7. After reload, `/api/auth/me` confirmed the logged-in state ✓
+
+Stage Summary:
+- 7 new files: 5 Next.js API routes (register, login, logout, me, sync proxy), auth modal component, start-all script.
+- The full offline-first auth + sync loop works: register/login → cookie → sync pushes local Zustand state to FastAPI → data persists in SQLite (Postgres-ready).
+- Guest mode (no login) stays fully local — no sync, data in localStorage only.
+- Both backend services (FastAPI 8000, Socket.io 3003) running persistently via start-all.sh.

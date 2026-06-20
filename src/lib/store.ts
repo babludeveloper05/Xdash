@@ -202,6 +202,12 @@ interface DeltaState {
   appearance: AppearancePrefs
   setAppearance: (patch: Partial<AppearancePrefs>) => void
 
+  /** Auth — the logged-in user (null = guest/offline mode). */
+  authUser: { id: string; email: string; name: string } | null
+  setAuthUser: (u: { id: string; email: string; name: string } | null) => void
+  authModalOpen: boolean
+  setAuthModalOpen: (v: boolean) => void
+
   spotlightOpen: boolean
   setSpotlight: (v: boolean) => void
 
@@ -308,6 +314,14 @@ export const useStore = create<DeltaState>()(
       appearance: { accentHue: 62, density: 'comfortable', glass: 'strong' },
       setAppearance: (patch) =>
         set((s) => ({ appearance: { ...s.appearance, ...patch } })),
+
+      // auth — the logged-in user (null = guest/offline mode). Token is stored
+      // separately in localStorage (not persisted by Zustand) so the sync hook
+      // can read it without subscribing to the store.
+      authUser: null,
+      setAuthUser: (u) => set({ authUser: u }),
+      authModalOpen: false,
+      setAuthModalOpen: (v) => set({ authModalOpen: v }),
 
       spotlightOpen: false,
       setSpotlight: (v) => set({ spotlightOpen: v }),

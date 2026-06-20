@@ -23,7 +23,6 @@ import { useStore } from '@/lib/store'
  */
 
 const SYNC_INTERVAL = 60_000 // 60s
-const API_BASE = '/api/sync'
 
 interface SyncResponse {
   notes?: Array<{ id: string; title: string; subject: string; content: string; tags: string[]; updatedAt: number }>
@@ -44,7 +43,22 @@ export function useSync() {
     const doSync = async () => {
       if (typeof navigator !== 'undefined' && !navigator.onLine) return
 
-      const token = localStorage.getItem('delta-token')
+      // Check if logged in via the /api/auth/me endpoint (reads the httpOnly cookie).
+      // If not logged in, skip sync (guest/offline mode — data stays local).
+      let token: string | null = null
+      try {
+        const meRes = await fetch('/api/auth/me')
+        if (meRes.ok) {
+          const meData = await meRes.json()
+          if (meData.user) {
+            // We're logged in — the cookie is httpOnly so we can't read it
+            // directly. Use the /api/sync proxy route which forwards the cookie.
+            token = 'authenticated'
+          }
+        }
+      } catch {
+        return
+      }
       if (!token) return // guest mode — no sync
 
       const state = useStore.getState()
@@ -97,12 +111,9 @@ export function useSync() {
       }
 
       try {
-        const res = await fetch(`${API_BASE}?XTransformPort=8000`, {
+        const res = await fetch('/api/sync', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         })
 
