@@ -3,7 +3,7 @@
 import { motion, useReducedMotion } from 'framer-motion'
 import { useStore, type WidgetState } from '@/lib/store'
 import { WIDGET_REGISTRY } from './widget-content'
-import { GlassCard, GhostButton, PrimaryButton, EmptyState } from '../ui'
+import { GlassCard, PrimaryButton, EmptyState } from '../ui'
 import { Sparkles, LayoutGrid, Pencil } from 'lucide-react'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
@@ -26,32 +26,6 @@ export function HomePage() {
         }
         .delta-widget-enter { animation: deltaWidgetIn 0.28s cubic-bezier(0.22,1,0.36,1) both; }
       `}</style>
-
-      {/* Sticky glass header */}
-      <motion.header
-        variants={staggerItem(reduce)}
-        transition={itemTransition(reduce)}
-        className="sticky top-0 z-30 glass-strong border-b border-border"
-      >
-        <div className="flex items-center justify-between gap-3 px-5 py-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <span className="grid place-items-center size-9 rounded-xl bg-primary/12 text-primary border border-primary/15 shrink-0">
-              <LayoutGrid className="size-4" />
-            </span>
-            <div className="min-w-0">
-              <h1 className="text-base font-semibold tracking-tight truncate">Dashboard</h1>
-              <p className="text-xs text-muted-foreground truncate">
-                Your personalized command center
-              </p>
-            </div>
-          </div>
-          <GhostButton onClick={() => setTab('playground')} className="shrink-0">
-            <Sparkles className="size-3.5 text-primary" />
-            <span className="hidden sm:inline">Customize</span>
-            <span className="sm:hidden">Edit</span>
-          </GhostButton>
-        </div>
-      </motion.header>
 
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex-1 min-h-0">
         {widgets.length === 0 ? (
