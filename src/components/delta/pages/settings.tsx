@@ -35,6 +35,7 @@ export function SettingsPage() {
   const draftDirty =
     draft.name !== profile.name ||
     draft.examName !== profile.examName ||
+    draft.track !== profile.track ||
     draft.targetYear !== profile.targetYear ||
     draft.batch !== profile.batch ||
     draft.location !== profile.location ||
@@ -112,9 +113,15 @@ export function SettingsPage() {
               onChange={(v) => setDraft((d) => ({ ...d, name: v }))}
             />
             <Field
-              label="Exam name"
+              label="Goal / focus"
               value={draft.examName}
               onChange={(v) => setDraft((d) => ({ ...d, examName: v }))}
+            />
+            <Field
+              label="Track"
+              hint="What you are — drives the AI tutor persona"
+              value={draft.track}
+              onChange={(v) => setDraft((d) => ({ ...d, track: v }))}
             />
             <Field
               label="Target year"

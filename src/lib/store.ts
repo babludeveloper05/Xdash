@@ -36,6 +36,10 @@ export interface UserProfile {
   targetYear: string
   batch: string
   examName: string
+  /** What the user is here for — e.g. "Software Developer", "JEE Aspirant", "Designer". Drives the AI tutor persona. */
+  track: string
+  /** Free-form subject/topic list the user is focusing on. Preset-driven, editable. */
+  subjects: string[]
 }
 
 /** Notification preferences — persisted so toggles survive reloads. */
@@ -286,6 +290,8 @@ export const useStore = create<DeltaState>()(
         targetYear: '2027',
         batch: 'Nucleus 2026',
         examName: 'My Exam',
+        track: 'Student',
+        subjects: ['Physics', 'Chemistry', 'Maths'],
       },
       setProfile: (patch) => set((s) => ({ profile: { ...s.profile, ...patch } })),
 

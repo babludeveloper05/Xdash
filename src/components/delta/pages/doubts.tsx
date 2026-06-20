@@ -26,7 +26,7 @@ const FILTERS: { key: FilterKey; label: string }[] = [
   { key: 'open', label: 'Open' },
 ]
 
-const SUBJECT_OPTIONS = ['Physics', 'Chemistry', 'Maths'] as const
+const FALLBACK_SUBJECTS = ['Physics', 'Chemistry', 'Maths'] as const
 
 const SUBJECT_TONE: Record<string, string> = {
   Physics: 'oklch(0.78 0.14 62)',
@@ -52,6 +52,12 @@ export function DoubtsPage() {
   const markDoubtAnswerError = useStore((s) => s.markDoubtAnswerError)
   const voteDoubt = useStore((s) => s.voteDoubt)
   const profileName = useStore((s) => s.profile.name)
+  const profileSubjects = useStore((s) => s.profile.subjects)
+  const profileTrack = useStore((s) => s.profile.track)
+  // Subjects come from the user's profile (set during onboarding) — so the
+  // doubt subject picker adapts to whatever the user is studying: JEE, dev,
+  // design, languages, anything. Falls back to a sensible default.
+  const subjectOptions = profileSubjects.length > 0 ? profileSubjects : [...FALLBACK_SUBJECTS]
 
   const [filter, setFilter] = useState<FilterKey>('all')
   const [sort, setSort] = useState<SortKey>('recent')
@@ -60,7 +66,7 @@ export function DoubtsPage() {
   const [autoExpand, setAutoExpand] = useState<Record<string, boolean>>({})
   const [draft, setDraft] = useState<{ text: string; subject: string }>({
     text: '',
-    subject: 'Physics',
+    subject: subjectOptions[0] ?? 'General',
   })
   const [posting, setPosting] = useState(false)
   const reduce = useReducedMotion() ?? false
@@ -109,7 +115,7 @@ export function DoubtsPage() {
     // The store assigns its own id; we don't need to track pendingAnswerId.
 
     setPosting(true)
-    setDraft({ text: '', subject: 'Physics' })
+    setDraft({ text: '', subject: subjectOptions[0] ?? 'General' })
     setComposing(false)
     setAutoExpand((e) => ({ ...e, [doubtId]: true }))
 
@@ -118,7 +124,7 @@ export function DoubtsPage() {
       const res = await fetch('/api/doubts/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: text, subject }),
+        body: JSON.stringify({ question: text, subject, track: profileTrack, subjects: profileSubjects }),
       })
       const data = await res.json()
       if (!res.ok || !data.answer) {
@@ -158,7 +164,7 @@ export function DoubtsPage() {
       const res = await fetch('/api/doubts/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: doubt.text, subject: doubt.subject }),
+        body: JSON.stringify({ question: doubt.text, subject: doubt.subject, track: profileTrack, subjects: profileSubjects }),
       })
       const data = await res.json()
       if (!res.ok || !data.answer) throw new Error(data?.error || 'retry failed')
@@ -455,7 +461,7 @@ export function DoubtsPage() {
               <span className="text-[11px] uppercase tracking-wider text-muted-foreground">
                 Subject
               </span>
-              {SUBJECT_OPTIONS.map((s) => (
+              {subjectOptions.map((s) => (
                 <Pill
                   key={s}
                   active={draft.subject === s}

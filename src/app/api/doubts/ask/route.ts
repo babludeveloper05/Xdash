@@ -8,29 +8,46 @@ export const dynamic = 'force-dynamic'
 interface AskBody {
   question?: unknown
   subject?: unknown
+  track?: unknown
+  subjects?: unknown
 }
 
-const ALLOWED_SUBJECTS = [
-  'Physics',
-  'Chemistry',
-  'Maths',
-  'Biology',
-  'Computer Science',
-  'English',
-] as const
-
 const MAX_QUESTION_LEN = 2000
+
+// Sanitize a free-form string from the client. The subject can now be anything
+// the user picked during onboarding (not just the 6 hardcoded science ones) —
+// e.g. "System Design", "Typography", "Vocabulary", "Nutrition". We accept any
+// non-empty string ≤ 60 chars to keep the prompt bounded.
+function sanitizeSubject(v: unknown): string {
+  if (typeof v !== 'string') return 'General'
+  const s = v.trim().slice(0, 60)
+  return s || 'General'
+}
+
+function sanitizeTrack(v: unknown): string {
+  if (typeof v !== 'string') return 'Learner'
+  const s = v.trim().slice(0, 60)
+  return s || 'Learner'
+}
+
+function sanitizeSubjects(v: unknown): string[] {
+  if (!Array.isArray(v)) return []
+  return v
+    .filter((x): x is string => typeof x === 'string')
+    .map((x) => x.trim().slice(0, 60))
+    .filter((x) => x.length > 0)
+    .slice(0, 12)
+}
 
 /**
  * POST /api/doubts/ask
  *
- * Body: { question: string, subject: string }
+ * Body: { question: string, subject: string, track?: string, subjects?: string[] }
  * Returns: { answer: string } — a worked, step-by-step solution from an
- * expert AI tutor for the given subject.
+ * expert AI tutor that adapts its persona to the user's field (student,
+ * developer, designer, language learner, anyone).
  *
- * The z-ai-web-dev-sdk is used server-side only (per SDK contract). The
- * system prompt pins the model to an encouraging exam-prep tutor persona so
- * answers are pedagogically useful, not just fact dumps.
+ * The z-ai-web-dev-sdk is used server-side only (per SDK contract).
  */
 export async function POST(req: NextRequest) {
   let body: AskBody
@@ -41,10 +58,9 @@ export async function POST(req: NextRequest) {
   }
 
   const question = typeof body.question === 'string' ? body.question.trim() : ''
-  const subject =
-    typeof body.subject === 'string' && (ALLOWED_SUBJECTS as readonly string[]).includes(body.subject)
-      ? body.subject
-      : 'General'
+  const subject = sanitizeSubject(body.subject)
+  const track = sanitizeTrack(body.track)
+  const subjects = sanitizeSubjects(body.subjects)
 
   if (!question) {
     return NextResponse.json({ error: 'Question is required' }, { status: 400 })
@@ -59,14 +75,24 @@ export async function POST(req: NextRequest) {
   try {
     const zai = await ZAI.create()
 
+    // Field-aware persona. The tutor adapts to whatever the user is working
+    // on — competitive exams, software engineering, design, languages, fitness,
+    // anything. The track + subject list give the model context to tune its
+    // examples and tone without being locked to "JEE/NEET aspirants".
+    const focusLine = subjects.length > 0
+      ? `The learner is focusing on: ${subjects.join(', ')}.`
+      : `The learner is focusing on ${subject}.`
     const systemPrompt = [
-      `You are Delta AI Tutor — an expert ${subject} teacher for competitive-exam aspirants (JEE / NEET / boards).`,
-      "Solve the student's doubt with a clear, step-by-step explanation.",
+      `You are Delta AI Tutor — an expert mentor for a ${track}.`,
+      `The current question is about ${subject}.`,
+      focusLine,
+      'Adapt your explanation, examples, and tone to this field. For technical/professional fields (software, data, design, finance) use industry-appropriate terminology and real-world scenarios. For academic fields use exam-grade rigor. For personal-growth fields (languages, fitness, music, writing) be practical and motivating.',
+      "Solve the learner's doubt with a clear, step-by-step explanation.",
       'Guidelines:',
       '- Start with a one-line direct answer or key insight.',
       '- Then walk through the reasoning in numbered steps.',
-      '- Use plain text (no Markdown tables, no code fences). You may use *italics* sparingly for emphasis.',
-      '- Include a concrete example or numerical illustration when it clarifies the concept.',
+      '- Use plain text (no Markdown tables, no code fences). You may use *italics* sparingly for emphasis. Code snippets are fine inline when the field demands it.',
+      '- Include a concrete example or illustration when it clarifies the concept.',
       '- End with a short "Takeaway" line.',
       '- Keep it under ~220 words. Be encouraging and precise — never hand-wave.',
       '- If the doubt is ambiguous, state your assumption before solving.',

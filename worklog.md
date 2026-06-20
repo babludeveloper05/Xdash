@@ -833,3 +833,49 @@ Stage Summary:
 - Y axis (sideways) follows nav direction; Z axis (top/bottom) adds a subtle vertical drift so the receding page "falls away" downward and the entering page "rises" into place.
 - All effects respect `prefers-reduced-motion` (collapse to opacity-only).
 - No new dependencies — uses framer-motion's `z` motion value (maps to translateZ) + CSS `perspective`.
+
+---
+Task ID: universal-all-fields
+Agent: main (Z.ai Code)
+Task: Generalize Project Delta from science/exam-only to serve everyone — students, professionals, developers, designers, language learners, and any field of study or profession.
+
+Work Log:
+- **Store** (`src/lib/store.ts`): added `track: string` and `subjects: string[]` to `UserProfile`. The track drives the AI tutor persona; the subjects are free-form (preset-driven, editable). Default profile set to `track: 'Student'`, `subjects: ['Physics','Chemistry','Maths']`. Zustand's merge handles existing users by falling back to these defaults for the new fields — no migration needed.
+
+- **Onboarding** (`src/components/delta/onboarding.tsx`) — full rewrite:
+  - Replaced the 6 exam-only presets with 4 categorized track groups spanning everyone:
+    - *Students & Academics*: JEE, NEET, Board Exams, UPSC/Civil Services, GATE/Higher Studies, Language/Aptitude
+    - *Professionals*: Software Developer, Data/ML Engineer, Product Manager, Designer, Business/Finance, Marketing/Growth, DevOps/Cloud
+    - *Personal Growth*: Language Learning, Fitness & Health, Creative Writing, Music, General Knowledge
+    - *Custom*: pick your own
+  - Each preset pre-fills a relevant subject set (e.g. Software Developer → Data Structures, Algorithms, System Design, Databases; Designer → UI/UX, Typography, Color Theory, Motion Design).
+  - Subject step is now free-form: shows preset subjects as removable chips + a text input to add custom subjects (press Enter). Users can add anything — a language, a framework, a hobby.
+  - Updated all copy: "exam preparation" → "learning", "exam" → "goal/focus", placeholders now include "Frontend Dev, JEE, UPSC, IELTS, Guitar…".
+
+- **Doubts page** (`src/components/delta/pages/doubts.tsx`):
+  - Subject picker now reads from `profile.subjects` (dynamic) instead of the hardcoded `['Physics','Chemistry','Maths']`. Falls back to a sensible default if empty.
+  - The draft subject default + post-doubt reset use `subjectOptions[0]` instead of hardcoded 'Physics'.
+  - Both fetch calls to `/api/doubts/ask` now send `track` + `subjects` from the profile so the AI tutor is field-aware.
+
+- **AI tutor API** (`src/app/api/doubts/ask/route.ts`) — generalized:
+  - Removed the hardcoded `ALLOWED_SUBJECTS` allowlist (was just the 6 science subjects). Subject is now sanitized free-form (any string ≤ 60 chars) — accepts "System Design", "Typography", "Vocabulary", "Nutrition", anything.
+  - Accepts `track` + `subjects` in the request body (sanitized).
+  - System prompt is now field-aware: "You are Delta AI Tutor — an expert mentor for a {track}." with instructions to adapt terminology/examples/tone to the field (technical/professional → industry terms; academic → exam rigor; personal growth → practical & motivating). No more "JEE/NEET aspirants" lock-in.
+
+- **Settings** (`src/components/delta/pages/settings.tsx`): renamed "Exam name" → "Goal / focus", added a "Track" field (editable, drives the AI tutor persona). Updated the draftDirty check to include track.
+
+- **Layout metadata** (`src/app/layout.tsx`): title "Study Platform" → "Learning Platform"; description "exam aspirants" → "students, professionals, developers, designers, and anyone building a skill".
+
+Agent Browser verification:
+- Cleared localStorage → re-ran onboarding as "Riya Verma" → picked "Software Developer" track → confirmed subject chips show Data Structures/Algorithms/System Design/Databases → completed onboarding.
+- localStorage confirmed: `track: "Software Developer"`, `subjects: ["Data Structures","Algorithms","System Design","Databases"]`, `goal: "Frontend Developer"`.
+- Dashboard greeting: "Good evening, Riya" ✓
+- Navigated to Doubts → subject pills showed the dev subjects (not Physics/Chemistry/Maths) ✓
+- Posted doubt "What is the difference between Big-O and Big-Theta notation?" → AI returned a relevant dev-flavored answer: "Big-O describes an upper bound, while Big-Theta describes a tight bound. 1. Big-O (O): Represents the worst-case growth rate of an algorithm..." (API 200 in 3.7s) ✓
+- The AI tutor adapted to the Software Developer track — no "JEE/NEET aspirant" persona.
+- 0 fresh errors in dev.log.
+
+Stage Summary:
+- 5 files modified: `store.ts` (+track/subjects on UserProfile), `onboarding.tsx` (full rewrite with 19 presets across 4 categories + free-form subjects), `doubts.tsx` (dynamic subjects from profile + sends track/subjects to API), `api/doubts/ask/route.ts` (field-aware persona), `settings.tsx` (+Track field), `layout.tsx` (metadata).
+- Project Delta is now universal: serves students (JEE/NEET/UPSC/Boards), professionals (developers, data, PMs, designers, finance, marketing, DevOps), and personal-growth learners (languages, fitness, writing, music). The AI tutor adapts its persona and examples to whatever field the user is in.
+- The 6 science subjects remain as default demo content for Library/Tests/Analytics (sample data); a real backend would populate per-track content. The app structure fully supports any track.

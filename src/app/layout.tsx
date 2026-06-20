@@ -14,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Project Delta — Study Platform",
+  title: "Project Delta — Learning Platform",
   description:
-    "A premium full-stack study platform for exam aspirants across every subject and goal.",
+    "A premium learning command center for everyone — students, professionals, developers, designers, and anyone building a skill.",
   generator: "v0.app",
   icons: {
     icon: [
