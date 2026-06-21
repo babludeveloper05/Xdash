@@ -12,12 +12,14 @@ import {
 } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore } from '@/lib/store'
-import { liveSessions } from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
 import { cn } from '@/lib/utils'
 import { subjectGradient, subjectTone } from '@/lib/subjects'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
 export function LivePage() {
+  const content = useContent()
+  const liveSessions = content.liveSessions
   const live = liveSessions.find((s) => s.isLive) ?? null
   const upcoming = liveSessions.filter((s) => !s.isLive)
   const liveAttended = useStore((s) => s.liveAttended)

@@ -3,11 +3,9 @@
 import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
-  Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen,
   Search, Play, Check,
   Sparkles, X, GraduationCap,
 } from 'lucide-react'
-import type { LucideIcon } from 'lucide-react'
 import {
   GlassCard, Pill, Segmented, EmptyState,
 } from '@/components/delta/ui'
@@ -15,34 +13,16 @@ import { ScaledPage } from '@/components/delta/scaled-page'
 import { VirtualGrid } from '@/components/delta/virtual'
 import { EmptyStateWrapper } from '@/components/delta/global'
 import { useStore } from '@/lib/store'
-import {
-  SUBJECTS, chapters, videos, fmtDuration,
-  type SubjectId, type Video,
-} from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
+import type { GeneratedVideo } from '@/lib/content-generator'
+import { subjectIcon, subjectPoster } from '@/lib/subjects'
+import { fmtDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
-const ICONS: Record<string, LucideIcon> = {
-  Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen,
-}
-
-// Warm subject gradients (kept in sync with the video-player poster map).
-const SUBJECT_POSTER: Record<SubjectId, string> = {
-  physics: 'from-[oklch(0.34_0.075_62)] via-[oklch(0.22_0.05_62)] to-[oklch(0.12_0.015_62)]',
-  chemistry: 'from-[oklch(0.34_0.075_150)] via-[oklch(0.22_0.05_150)] to-[oklch(0.12_0.015_150)]',
-  maths: 'from-[oklch(0.34_0.06_250)] via-[oklch(0.22_0.04_250)] to-[oklch(0.12_0.015_250)]',
-  biology: 'from-[oklch(0.34_0.075_30)] via-[oklch(0.22_0.05_30)] to-[oklch(0.12_0.015_30)]',
-  cs: 'from-[oklch(0.34_0.06_200)] via-[oklch(0.22_0.04_200)] to-[oklch(0.12_0.015_200)]',
-  english: 'from-[oklch(0.34_0.055_90)] via-[oklch(0.22_0.04_90)] to-[oklch(0.12_0.015_90)]',
-}
-
-type SubjectFilter = 'all' | SubjectId
+type SubjectFilter = 'all' | string
 type StatusFilter = 'all' | 'inprogress' | 'completed' | 'notstarted'
 type SortKey = 'default' | 'duration' | 'title' | 'progress'
-
-function chapterTitleOf(video: Video): string {
-  return chapters.find((c) => c.id === video.chapterId)?.title ?? ''
-}
 
 /* ------------------------------------------------------------------ */
 /*  Video card                                                         */
@@ -50,17 +30,22 @@ function chapterTitleOf(video: Video): string {
 
 function VideoCard({
   video,
+  chapters,
+  subjects,
   onOpen,
   compact = false,
 }: {
-  video: Video
+  video: GeneratedVideo
+  chapters: ReturnType<typeof useContent>['chapters']
+  subjects: ReturnType<typeof useContent>['subjects']
   onOpen: () => void
   compact?: boolean
 }) {
   const vp = useStore((s) => s.videoProgress[video.id])
   const pct = vp ? Math.round(vp.fraction * 100) : 0
-  const subject = SUBJECTS.find((s) => s.id === video.subjectId)
-  const SubjectIcon = subject ? ICONS[subject.icon] : null
+  const subject = subjects.find((s) => s.id === video.subjectId)
+  const SubjectIcon = subject ? subjectIcon(subject.id) : null
+  const chapterTitle = chapters.find((c) => c.id === video.chapterId)?.title ?? ''
 
   return (
     <GlassCard
@@ -78,7 +63,7 @@ function VideoCard({
           className={cn(
             'relative bg-gradient-to-br grid place-items-center overflow-hidden',
             compact ? 'aspect-[16/10]' : 'aspect-video',
-            SUBJECT_POSTER[video.subjectId]
+            subjectPoster(video.subjectId)
           )}
         >
           {/* sheen */}
@@ -127,7 +112,7 @@ function VideoCard({
           <div className="mt-2 flex items-center gap-1.5 text-[11px] text-muted-foreground">
             <span className="truncate font-medium text-foreground/80">{video.instructor}</span>
             <span className="size-1 rounded-full bg-muted-foreground/40 shrink-0" />
-            <span className="truncate">{chapterTitleOf(video)}</span>
+            <span className="truncate">{chapterTitle}</span>
           </div>
           {pct > 0 && !vp?.completed && (
             <p className="mt-1.5 text-[11px] text-primary font-medium tabular">
@@ -148,6 +133,8 @@ export function LibraryPage() {
   const vp = useStore((s) => s.videoProgress)
   const openTheater = useStore((s) => s.openTheater)
   const reduce = useReducedMotion() ?? false
+  const content = useContent()
+  const { subjects, chapters, videos } = content
 
   const [subjectFilter, setSubjectFilter] = useState<SubjectFilter>('all')
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
@@ -156,11 +143,11 @@ export function LibraryPage() {
 
   const totalContentHours = useMemo(
     () => Math.round(videos.reduce((sum, v) => sum + v.durationSec, 0) / 3600),
-    []
+    [videos]
   )
   const completedCount = useMemo(
     () => videos.filter((v) => vp[v.id]?.completed).length,
-    [vp]
+    [vp, videos]
   )
 
   // Continue watching: in-progress, not completed.
@@ -172,7 +159,7 @@ export function LibraryPage() {
       })
       .sort((a, b) => (vp[b.id]?.fraction ?? 0) - (vp[a.id]?.fraction ?? 0))
       .slice(0, 8)
-  }, [vp])
+  }, [vp, videos])
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase()
@@ -184,7 +171,7 @@ export function LibraryPage() {
 
     if (q) {
       list = list.filter((v) => {
-        const chapter = chapterTitleOf(v).toLowerCase()
+        const chapter = (chapters.find((c) => c.id === v.chapterId)?.title ?? '').toLowerCase()
         return (
           v.title.toLowerCase().includes(q) ||
           v.instructor.toLowerCase().includes(q) ||
@@ -225,7 +212,7 @@ export function LibraryPage() {
     }
 
     return list
-  }, [subjectFilter, statusFilter, sort, query, vp])
+  }, [subjectFilter, statusFilter, sort, query, vp, videos, chapters])
 
   const subtitle = `${videos.length} lectures · ${totalContentHours}h of content · ${completedCount} completed`
 
@@ -256,7 +243,7 @@ export function LibraryPage() {
             <div className="flex gap-4 overflow-x-auto scroll-thin pb-2 -mx-1 px-1">
               {continueWatching.map((v) => (
                 <div key={v.id} className="w-[260px] shrink-0">
-                  <VideoCard video={v} onOpen={() => openTheater(v.id)} compact />
+                  <VideoCard video={v} chapters={chapters} subjects={subjects} onOpen={() => openTheater(v.id)} compact />
                 </div>
               ))}
             </div>
@@ -306,8 +293,8 @@ export function LibraryPage() {
             >
               All subjects
             </Pill>
-            {SUBJECTS.map((s) => {
-              const Icon = ICONS[s.icon]
+            {subjects.map((s) => {
+              const Icon = subjectIcon(s.id)
               const subVids = videos.filter((v) => v.subjectId === s.id)
               const done = subVids.filter((v) => vp[v.id]?.completed).length
               return (
@@ -317,7 +304,7 @@ export function LibraryPage() {
                   onClick={() => setSubjectFilter(s.id)}
                 >
                   <span className="inline-flex items-center gap-1.5">
-                    {Icon && <Icon className="size-3.5" style={{ color: s.color }} />}
+                    <Icon className="size-3.5" style={{ color: s.color }} />
                     <span>{s.name}</span>
                     <span className="text-[10px] opacity-60 tabular">{done}/{subVids.length}</span>
                   </span>
@@ -353,7 +340,7 @@ export function LibraryPage() {
             <h2 className="text-sm font-semibold tracking-tight">
               {subjectFilter === 'all'
                 ? 'All lectures'
-                : `${SUBJECTS.find((s) => s.id === subjectFilter)?.name} lectures`}
+                : `${subjects.find((s) => s.id === subjectFilter)?.name} lectures`}
             </h2>
             <span className="text-[11px] text-muted-foreground tabular">
               {filtered.length} {filtered.length === 1 ? 'result' : 'results'}
@@ -374,7 +361,7 @@ export function LibraryPage() {
               maxHeight="min(70vh, 620px)"
               gridClassName="grid grid-cols-1 @sm:grid-cols-2 @lg:grid-cols-3 @xl:grid-cols-4 gap-4"
               renderItem={(v) => (
-                <VideoCard key={v.id} video={v} onOpen={() => openTheater(v.id)} />
+                <VideoCard key={v.id} video={v} chapters={chapters} subjects={subjects} onOpen={() => openTheater(v.id)} />
               )}
             />
           </EmptyStateWrapper>

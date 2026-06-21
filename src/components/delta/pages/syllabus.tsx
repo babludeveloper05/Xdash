@@ -3,9 +3,8 @@
 import { useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
-  Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen,
+  BookOpen,
   ChevronDown, Check, Circle, PlayCircle, Clock, Layers, TrendingUp,
-  type LucideIcon,
 } from 'lucide-react'
 import {
   GlassCard, Pill, ProgressRing, EmptyState,
@@ -13,16 +12,12 @@ import {
 import { ScaledPage } from '@/components/delta/scaled-page'
 import { StatBlock } from '@/components/delta/data'
 import { useStore, useSubjectProgress } from '@/lib/store'
-import { SUBJECTS, chapters, videos, type SubjectId } from '@/lib/mock-data'
-import { subjectTone } from '@/lib/subjects'
+import { useContent } from '@/hooks/use-content'
+import { subjectTone, subjectIcon } from '@/lib/subjects'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
-type SubjectFilter = 'all' | SubjectId
-
-const ICONS: Record<string, LucideIcon> = {
-  Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen,
-}
+type SubjectFilter = 'all' | string
 
 export function SyllabusPage() {
   const [filter, setFilter] = useState<SubjectFilter>('all')
@@ -32,6 +27,8 @@ export function SyllabusPage() {
   const openTheater = useStore((s) => s.openTheater)
   const subjectProgress = useSubjectProgress()
   const reduce = useReducedMotion() ?? false
+  const content = useContent()
+  const { subjects, chapters, videos } = content
 
   const overall = useMemo(() => {
     const all = videos
@@ -52,7 +49,7 @@ export function SyllabusPage() {
       chaptersTotal: chapters.length,
       chaptersDone,
     }
-  }, [vp])
+  }, [vp, videos, chapters])
 
   function chapterStats(cid: string) {
     const vids = videos.filter((v) => v.chapterId === cid)
@@ -61,9 +58,9 @@ export function SyllabusPage() {
   }
 
   const visibleSubjects = useMemo(() => {
-    if (filter === 'all') return SUBJECTS
-    return SUBJECTS.filter((s) => s.id === filter)
-  }, [filter])
+    if (filter === 'all') return subjects
+    return subjects.filter((s) => s.id === filter)
+  }, [filter, subjects])
 
   return (
     <ScaledPage>
@@ -106,8 +103,8 @@ export function SyllabusPage() {
         <Pill active={filter === 'all'} onClick={() => setFilter('all')}>
           All
         </Pill>
-        {SUBJECTS.map((s) => {
-          const Icon = ICONS[s.icon]
+        {subjects.map((s) => {
+          const Icon = subjectIcon(s.id)
           const pct = Math.round((subjectProgress[s.id] ?? 0) * 100)
           const active = filter === s.id
           return (
@@ -155,7 +152,7 @@ export function SyllabusPage() {
         ) : (
           <div className="flex flex-col gap-4">
             {visibleSubjects.map((subject) => {
-              const Icon = ICONS[subject.icon]
+              const Icon = subjectIcon(subject.id)
               const accent = subjectTone(subject.id)
               const subChapters = chapters.filter((c) => c.subjectId === subject.id)
               const subVideos = videos.filter((v) => v.subjectId === subject.id)

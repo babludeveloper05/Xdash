@@ -15,18 +15,19 @@ import { ScaledPage } from '@/components/delta/scaled-page'
 import { FilterBar } from '@/components/delta/global'
 import { DataCard, StatBlock } from '@/components/delta/data'
 import { useStore, type HistoryRow } from '@/lib/store'
-import { tests, buildQuestions, type TestItem, type Question } from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
+import type { GeneratedTest } from '@/lib/content-generator'
+import { buildQuestions, type Question } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
 type View = 'available' | 'attempt' | 'results' | 'history' | 'analysis'
 type BadgeTone = 'default' | 'primary' | 'success' | 'warning' | 'destructive'
 
-const TEST_TYPES = ['All', 'JEE Main', 'JEE Advanced', 'Chapter Test', 'Full Syllabus', 'Previous Year'] as const
 const DIFFICULTIES = ['All', 'Easy', 'Moderate', 'Hard'] as const
 
 interface ResultData {
-  test: TestItem
+  test: GeneratedTest
   questions: Question[]
   answers: Record<number, number>
   marked: Record<number, boolean>
@@ -40,7 +41,7 @@ interface ResultData {
 
 export function TestsPage() {
   const [view, setView] = useState<View>('available')
-  const [activeTest, setActiveTest] = useState<TestItem | null>(null)
+  const [activeTest, setActiveTest] = useState<GeneratedTest | null>(null)
   const [lastResult, setLastResult] = useState<ResultData | null>(null)
   const [analysisRow, setAnalysisRow] = useState<HistoryRow | null>(null)
 
@@ -96,13 +97,20 @@ export function TestsPage() {
 }
 
 /* ---------------- AVAILABLE ---------------- */
-function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void; onHistory: () => void }) {
+function AvailableView({ onStart, onHistory }: { onStart: (t: GeneratedTest) => void; onHistory: () => void }) {
   const history = useStore((s) => s.history)
   const reduce = useReducedMotion() ?? false
+  const content = useContent()
+  const tests = content.tests
   const [type, setType] = useState<string>('All')
   const [diff, setDiff] = useState<string>('All')
 
-  const dueCount = useMemo(() => tests.filter((t) => t.deadlineHours !== null).length, [])
+  const TEST_TYPES = useMemo(
+    () => ['All', ...Array.from(new Set(tests.map((t) => t.type)))],
+    [tests]
+  )
+
+  const dueCount = useMemo(() => tests.filter((t) => t.deadlineHours !== null).length, [tests])
   const avgPct = useMemo(() => {
     if (!history.length) return 0
     return Math.round((history.reduce((acc, h) => acc + h.score / h.total, 0) / history.length) * 100)
@@ -120,7 +128,7 @@ function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void;
           (type === 'All' || t.type === type) &&
           (diff === 'All' || t.difficulty === diff)
       ),
-    [type, diff]
+    [tests, type, diff]
   )
 
   return (
@@ -198,7 +206,7 @@ function AvailableView({ onStart, onHistory }: { onStart: (t: TestItem) => void;
   )
 }
 
-function TestCard({ test, onStart }: { test: TestItem; onStart: () => void }) {
+function TestCard({ test, onStart }: { test: GeneratedTest; onStart: () => void }) {
   const due = test.deadlineHours
   const urgent = due !== null && due <= 24
   const soon = due !== null && due > 24 && due <= 72
@@ -250,7 +258,7 @@ function AttemptView({
   onSubmit,
   onExit,
 }: {
-  test: TestItem
+  test: GeneratedTest
   onSubmit: (r: ResultData) => void
   onExit: () => void
 }) {

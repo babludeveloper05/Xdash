@@ -1147,3 +1147,97 @@ Stage Summary:
 - 1 file modified: settings.tsx (Appearance section rewritten + store subscriptions added).
 - Users can now change their theme (accent/density/glass) and nav pages at any time from Settings — no need to re-run onboarding.
 - All changes apply instantly via the existing ThemeVars + TopNav infrastructure.
+
+---
+Task ID: A-pages
+Agent: general-purpose (per-track content refactor)
+Task: Refactor Library/Tests/Syllabus/Analytics/Leaderboard/Live to use useContent() instead of mock-data imports
+
+Work Log:
+- Read `/home/z/my-project/worklog.md` (recent sections) to learn the established refactor pattern, then read the new system files in full: `src/hooks/use-content.ts` (memoized hook reading `profile.subjects` + `profile.track`, falls back to `['Physics','Chemistry','Maths']` + `'Student'`), `src/lib/content-generator.ts` (deterministic seeded generator producing `GeneratedSubject/Chapter/Video/Test` + `liveSessions/achievements/studyHours/scoreTrend`), and `src/lib/content-packs.ts` (track→pack map: ACADEMIC/PROFESSIONAL/CREATIVE/LANGUAGE/WELLNESS flavors).
+- Read all 6 target page files in full and cross-checked the `GeneratedContent` shape vs the existing `mock-data.ts` exports (`SUBJECTS`, `chapters`, `videos`, `tests`, `liveSessions`, `studyHours`) to confirm field-name parity. Key difference: generated subjects use `string` for `subjectId`/`id` (not the `SubjectId` union), so `type SubjectId` references had to become `string`.
+
+- **`src/components/delta/pages/library.tsx`**:
+  - Removed imports: `SUBJECTS, chapters, videos, fmtDuration, type SubjectId, type Video` from `@/lib/mock-data`; lucide subject icons (`Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen`); `type LucideIcon`.
+  - Added imports: `useContent` from `@/hooks/use-content`; `type GeneratedVideo` from `@/lib/content-generator`; `subjectIcon, subjectPoster` from `@/lib/subjects`; `fmtDuration` from `@/lib/format`.
+  - Deleted the `ICONS: Record<string, LucideIcon>` record and the `SUBJECT_POSTER: Record<SubjectId, string>` record (both now sourced via the global `subjectIcon(id)` + `subjectPoster(id)` helpers).
+  - Deleted the `chapterTitleOf(video: Video)` helper — inlined as `chapters.find((c) => c.id === video.chapterId)?.title ?? ''` inside the `VideoCard` body (now receives `chapters` + `subjects` as props).
+  - `type SubjectFilter = 'all' | SubjectId` → `'all' | string`.
+  - `VideoCard` signature: `video: Video` → `video: GeneratedVideo`; added `chapters` + `subjects` props (typed via `ReturnType<typeof useContent>['chapters' | 'subjects']`). All three call sites (`continueWatching` rail, `VirtualGrid` renderItem) updated to pass the new props.
+  - `LibraryPage` body: added `const content = useContent(); const { subjects, chapters, videos } = content`. Replaced `SUBJECTS` → `subjects`, `chapters` → `chapters` (closure over the destructured const), `videos` → `videos`, `ICONS[s.icon]` → `subjectIcon(s.id)`, `SUBJECT_POSTER[video.subjectId]` → `subjectPoster(video.subjectId)`, `chapterTitleOf(v)` → inline `chapters.find(...)`. Updated all `useMemo` dependency arrays to include `videos`/`chapters`/`subjects` so the memo recomputes when the user changes subjects.
+  - Note: the existing `const subtitle` is defined but never read in the JSX — pre-existing dead code; left untouched for parity.
+
+- **`src/components/delta/pages/tests.tsx`**:
+  - Removed imports: `tests`, `type TestItem` from `@/lib/mock-data`. Kept `buildQuestions` + `type Question` (per instructions — the question bank is still mock-seeded).
+  - Added imports: `useContent` from `@/hooks/use-content`; `type GeneratedTest` from `@/lib/content-generator`.
+  - Deleted the module-level `const TEST_TYPES = ['All','JEE Main','JEE Advanced','Chapter Test','Full Syllabus','Previous Year'] as const` constant — it was hardcoded to JEE test types. Replaced with `const TEST_TYPES = useMemo(() => ['All', ...Array.from(new Set(tests.map((t => t.type)))], [tests])` inside `AvailableView` so the type pills derive from whatever the generator produced (a Software Developer sees `Coding Challenge`/`Mock Interview`/etc.; a JEE aspirant sees `Full Syllabus`/`Chapter Test`/etc.).
+  - `ResultData.test: TestItem` → `GeneratedTest`. `TestsPage` `activeTest` state: `TestItem | null` → `GeneratedTest | null`. `AvailableView.onStart: (t: TestItem) => void` → `(t: GeneratedTest) => void`. `TestCard.test: TestItem` → `GeneratedTest`. `AttemptView.test: TestItem` → `GeneratedTest`.
+  - `AvailableView` body: added `const content = useContent(); const tests = content.tests`. Updated `dueCount` and `list` `useMemo` deps to include `tests`.
+  - `AnalysisView`'s `const subjects = ['Physics','Chemistry','Maths']` left as-is — it's the question-bank subject breakdown for the attempt analysis (the question bank is still mock-seeded to Physics/Chemistry/Maths), not a per-track content list.
+
+- **`src/components/delta/pages/syllabus.tsx`**:
+  - Removed imports: `SUBJECTS, chapters, videos, type SubjectId` from `@/lib/mock-data`; lucide subject icons (`Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen`); `type LucideIcon`.
+  - Added imports: `useContent` from `@/hooks/use-content`; added `subjectIcon` to the existing `subjectTone` import from `@/lib/subjects`.
+  - Deleted the `ICONS: Record<string, LucideIcon>` record.
+  - `type SubjectFilter = 'all' | SubjectId` → `'all' | string`.
+  - `SyllabusPage` body: added `const content = useContent(); const { subjects, chapters, videos } = content`. Replaced `SUBJECTS` → `subjects`, `ICONS[s.icon]` → `subjectIcon(s.id)`, `ICONS[subject.icon]` → `subjectIcon(subject.id)`. Updated `overall` and `visibleSubjects` `useMemo` deps.
+  - Pre-existing `subjectTone` import (added in the G7-pages refactor) left as-is.
+
+- **`src/components/delta/pages/analytics.tsx`**:
+  - Removed imports: `studyHours, SUBJECTS` from `@/lib/mock-data`.
+  - Added imports: `useContent` from `@/hooks/use-content`.
+  - `AnalyticsPage` body: added `const content = useContent(); const { subjects, studyHours } = content`. Replaced `SUBJECTS` → `subjects` in both `subjectBars` and the Subject Mastery map. Updated `hoursTrend`, `totalHours30d`, and `subjectBars` `useMemo` deps to include `studyHours`/`subjects`.
+  - `useSubjectProgress` and `useTotalHours` from the store kept as-is (they read `videoProgress` which is still mock-seeded).
+
+- **`src/components/delta/pages/leaderboard.tsx`**: NOT modified. The leaderboard data is community data (1,000 other learners), not per-track content — it stays in `mock-data.ts`. Confirmed the page imports `leaderboard` from `@/lib/mock-data` and does not call `useContent()`.
+
+- **`src/components/delta/pages/live.tsx`**:
+  - Removed import: `liveSessions` from `@/lib/mock-data`.
+  - Added import: `useContent` from `@/hooks/use-content`.
+  - `LivePage` body: added `const content = useContent(); const liveSessions = content.liveSessions` at the top, before the existing `live = liveSessions.find(...)` and `upcoming = liveSessions.filter(...)` lines (so those lines now read from the generated content).
+  - Existing `subjectGradient`/`subjectTone` imports (from the G7-helpers refactor) and the `.toLowerCase()` normalization at every call site left as-is.
+
+- Verification:
+  - `grep -rn "from '@/lib/mock-data'" src/components/delta/pages/{library,tests,syllabus,analytics,live}.tsx` → only `tests.tsx:20:import { buildQuestions, type Question } from '@/lib/mock-data'` (expected — kept per instructions).
+  - `grep -n "useContent" src/components/delta/pages/{library,tests,syllabus,analytics,live}.tsx` → all 5 files import and call `useContent()`.
+  - `grep -n "from '@/lib/mock-data'" src/components/delta/pages/leaderboard.tsx` → still imports `leaderboard` (expected).
+  - Dev server: cleared `.next` cache, started `npm run dev`, hit `http://localhost:3000/` → `HTTP 200`, compile time 5.4s, **no TypeScript errors, no runtime errors** in `dev.log`. All 6 page components (Library/Tests/Syllabus/Analytics/Leaderboard/Live) are statically imported by `app-shell.tsx`, so they're all bundled into the home-page compile — a clean 200 confirms all 5 modified files compile.
+
+Stage Summary:
+- 5 files modified: `library.tsx`, `tests.tsx`, `syllabus.tsx`, `analytics.tsx`, `live.tsx`. `leaderboard.tsx` left untouched (community data, not per-track content).
+- All 5 modified pages now consume `useContent()` for their data. The app is now track-aware: a Software Developer with `["Data Structures","Algorithms","System Design"]` + track `Software Developer` sees PROFESSIONAL-pack content (Foundations/Core Patterns/Coding Challenge tests with names like "Alex Chen"/"Priya Patel"); a JEE aspirant with `["Physics","Chemistry","Maths"]` + track `JEE / Engineering` sees ACADEMIC-pack content (Fundamentals/Core Principles/Full Syllabus tests with NV Sir/AS Mam). Same pages, different data — purely driven by the user's onboarding profile.
+- Type-mismatch issues hit:
+  1. `SubjectId` (union: `'physics' | 'chemistry' | ...`) vs generated `string` IDs — updated all `type SubjectFilter = 'all' | SubjectId` to `'all' | string` in library + syllabus.
+  2. `Video` (mock) vs `GeneratedVideo` (content-generator) — same shape (`id/chapterId/subjectId/number/title/instructor/durationSec`) so the swap was structural; `VideoCard` prop type changed and the `chapterTitleOf(video)` helper was inlined (couldn't take `Video` anymore; passing `chapters` as a prop was cleaner than re-fetching inside the helper).
+  3. `TestItem` (mock, `type: 'JEE Main' | 'JEE Advanced' | ...`) vs `GeneratedTest` (`type: string`) — the wider `string` type is what made it possible to drop the hardcoded `TEST_TYPES` constant and derive it dynamically from `content.tests`. All four `TestItem` annotations in tests.tsx (`ResultData.test`, `TestsPage.activeTest`, `AvailableView.onStart`, `TestCard.test`, `AttemptView.test`) became `GeneratedTest`.
+  4. `tests.tsx` `TEST_TYPES` — was a module-level `as const` tuple; now a `useMemo` inside `AvailableView` because it depends on `content.tests` (which is only available inside the component, not at module scope). The `'All'` prefix is preserved so the default filter shows all tests.
+- No visual appearance changes — every card/badge/chart/pill renders identically; only the underlying data source swapped from `mock-data.ts` constants to `useContent()` return values.
+- The leaderboard page is the only remaining `mock-data.ts` consumer among the 6 list pages; it's intentional (community data is per-app, not per-track). Notes/doubts/profile/settings/home pages were outside the scope and remain unchanged.
+
+---
+Task ID: per-track-content
+Agent: main (Z.ai Code)
+Task: A — Per-track content packs. Decouple the app from the 6 hardcoded science subjects so a Software Developer sees DSA/Algorithms content, a Designer sees UI/UX content, etc.
+
+Work Log:
+- **Content packs** (`src/lib/content-packs.ts`): defines 5 content flavors (academic, professional, creative, language, wellness) with track-specific chapter topics, video topics, test types, instructor names, and difficulty distributions. Maps 19 track names to their packs. Falls back to academic for unknown tracks.
+- **Content generator** (`src/lib/content-generator.ts`): generates all learning entities from a subject list + track using a deterministic seeded PRNG (stable across reloads). Produces: subjects (with icon/color from the global subject system), chapters (8-12 per subject, track-flavored titles), videos (5 per chapter), tests (track-flavored types — "Coding Challenge" for devs, "Full Syllabus" for academics), live sessions, achievements (track-aware titles), study hours, score trend.
+- **useContent hook** (`src/hooks/use-content.ts`): reads profile.subjects + profile.track from the store, calls generateContent(), memoizes against subjects+track. Falls back to ['Physics','Chemistry','Maths'] if no subjects set.
+- **Refactored 5 pages** (via subagent):
+  - `library.tsx` — uses content.subjects/chapters/videos instead of mock-data imports
+  - `tests.tsx` — uses content.tests, dynamically derives TEST_TYPES from the generated tests (no more hardcoded JEE types)
+  - `syllabus.tsx` — uses content.subjects/chapters/videos
+  - `analytics.tsx` — uses content.studyHours/subjects
+  - `live.tsx` — uses content.liveSessions
+
+Agent Browser verification:
+- Set profile to Software Developer with subjects [Data Structures, Algorithms, System Design, Databases]
+- Library page showed: "Data Structures 0/60", "Algorithms 0/40", "System Design 0/45" ✓ (NOT Physics/Chemistry/Maths)
+- Tests page showed: "Coding Challenge", "Concept Quiz", "Project Review", "Mock Interview", "Skill Test" ✓ (NOT JEE Main/JEE Advanced)
+- 0 errors, clean compiles.
+
+Stage Summary:
+- 3 new files: content-packs.ts, content-generator.ts, use-content.ts hook.
+- 5 pages refactored to consume useContent() instead of mock-data.
+- The app is now truly universal: the same Library/Tests/Syllabus/Analytics/Live pages show different content based on the user's track + subjects. A Software Developer sees DSA videos + coding challenges; a JEE aspirant sees Physics chapters + full syllabus tests; a Designer sees UI/UX content + design briefs.
+- The science content (Physics/Chemistry/Maths) is now just the default fallback for users with no subjects set, not the only option.

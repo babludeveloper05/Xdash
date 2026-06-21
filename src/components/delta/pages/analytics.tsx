@@ -10,7 +10,7 @@ import { Clock, TrendingUp, Flame, Target, Award, Activity, BookOpen } from 'luc
 import { GlassCard, MetricCard } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore, useSubjectProgress, useTotalHours } from '@/lib/store'
-import { studyHours, SUBJECTS } from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
 interface TipPayload {
@@ -31,6 +31,8 @@ export function AnalyticsPage() {
   const streak = useStore((s) => s.streak)
   const history = useStore((s) => s.history)
   const reduce = useReducedMotion() ?? false
+  const content = useContent()
+  const { subjects, studyHours } = content
 
   const avgScore = useMemo(() => {
     if (!history.length) return 0
@@ -39,13 +41,13 @@ export function AnalyticsPage() {
 
   const subjectBars = useMemo(
     () =>
-      SUBJECTS.slice(0, 6).map((s) => ({
+      subjects.slice(0, 6).map((s) => ({
         subject: s.name,
         short: s.name.length > 7 ? s.name.slice(0, 4) : s.name.slice(0, 4),
         value: Math.round((subjectProgress[s.id] ?? 0) * 100),
         fill: s.color,
       })),
-    [subjectProgress]
+    [subjectProgress, subjects]
   )
 
   const scoreData = useMemo(
@@ -63,7 +65,7 @@ export function AnalyticsPage() {
     const recent = studyHours.slice(-7).reduce((a, h) => a + h.hours, 0)
     const prev = studyHours.slice(-14, -7).reduce((a, h) => a + h.hours, 0)
     return Math.round((recent - prev) * 10) / 10
-  }, [])
+  }, [studyHours])
 
   // Avg score delta: last 6 vs previous 6
   const scoreTrendDelta = useMemo(() => {
@@ -78,7 +80,7 @@ export function AnalyticsPage() {
 
   const totalHours30d = useMemo(
     () => Math.round(studyHours.reduce((a, h) => a + h.hours, 0)),
-    []
+    [studyHours]
   )
 
   return (
@@ -290,7 +292,7 @@ export function AnalyticsPage() {
               subtitle="Detailed progress per subject"
             />
             <div className="grid grid-cols-1 @md:grid-cols-2 gap-x-8 gap-y-4 mt-1">
-              {SUBJECTS.slice(0, 6).map((s) => {
+              {subjects.slice(0, 6).map((s) => {
                 const v = Math.round((subjectProgress[s.id] ?? 0) * 100)
                 return (
                   <div key={s.id} className="flex flex-col gap-1.5">
