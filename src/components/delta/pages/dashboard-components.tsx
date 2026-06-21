@@ -249,12 +249,12 @@ export function ComponentSubjectRings() {
       <Header icon={<TrendingUp className="size-3.5" />} title="Subject Progress" />
       <div className="flex items-center justify-around flex-1 gap-1">
         {core.map((s) => {
-          const pct = subjectProgress[s.id]
+          const pct = subjectProgress[s.id] ?? 0
           return (
             <div key={s.id} className="flex flex-col items-center gap-1.5 min-w-0">
               <ProgressRing value={pct} size={72} stroke={7}>
                 <div className="text-center leading-none">
-                  <span className="text-sm font-light tabular">{Math.round(pct * 100)}</span>
+                  <span className="text-sm font-light tabular">{Math.round((pct || 0) * 100)}</span>
                   <span className="block text-[8px] text-muted-foreground mt-0.5">%</span>
                 </div>
               </ProgressRing>
