@@ -121,7 +121,7 @@ export function ProfilePage() {
 
         {/* RIGHT: subject mastery + recent activity */}
         <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex flex-col gap-5 min-w-0">
-          <SubjectMastery subjectProgress={subjectProgress} />
+          <SubjectMastery subjectProgress={subjectProgress} subjects={content.subjects} />
           <RecentActivity />
         </motion.div>
       </motion.div>
@@ -250,11 +250,15 @@ function Stat({
 
 function SubjectMastery({
   subjectProgress,
+  subjects,
 }: {
   subjectProgress: Record<string, number>
+  subjects: { id: string; name: string; color: string; icon: string }[]
 }) {
-  const subjects = content.subjects.slice(0, 6)
-  const avg = subjects.reduce((acc, s) => acc + (subjectProgress[s.id] ?? 0), 0) / subjects.length
+  const safeSubjects = (subjects || []).slice(0, 6)
+  const avg = safeSubjects.length > 0
+    ? safeSubjects.reduce((acc, s) => acc + (subjectProgress[s.id] ?? 0), 0) / safeSubjects.length
+    : 0
 
   return (
     <GlassCard className="p-5">
@@ -270,7 +274,7 @@ function SubjectMastery({
         </ProgressRing>
       </div>
       <div className="grid grid-cols-2 @sm:grid-cols-3 gap-3">
-        {subjects.map((s) => {
+        {safeSubjects.map((s) => {
           const v = subjectProgress[s.id] ?? 0
           const Icon = SUBJECT_ICON[s.icon] ?? Atom
           return (
