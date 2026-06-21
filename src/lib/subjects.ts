@@ -2,7 +2,7 @@ import {
   Atom, FlaskConical, Sigma, Dna, Cpu, BookOpen,
   type LucideIcon,
 } from 'lucide-react'
-import type { SubjectId } from './mock-data'
+import type { SubjectId } from './types'
 
 /**
  * Global subject appearance system.

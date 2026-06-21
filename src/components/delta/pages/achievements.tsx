@@ -10,7 +10,8 @@ import {
 } from 'lucide-react'
 import { GlassCard, Pill, ProgressRing } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
-import { achievements, type Achievement } from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
+import type { Achievement } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
@@ -70,19 +71,19 @@ export function AchievementsPage() {
   const [rarity, setRarity] = useState<RarityFilter>('All')
   const reduce = useReducedMotion() ?? false
 
-  const earnedCount = achievements.filter((a) => a.earned).length
+  const content = useContent(); const earnedCount = content.content.achievements.filter((a) => a.earned).length
   const rarityCounts = useMemo(
     () => ({
-      Rare: achievements.filter((a) => a.rarity === 'Rare' && a.earned).length,
-      Epic: achievements.filter((a) => a.rarity === 'Epic' && a.earned).length,
-      Legendary: achievements.filter((a) => a.rarity === 'Legendary' && a.earned).length,
+      Rare: content.achievements.filter((a) => a.rarity === 'Rare' && a.earned).length,
+      Epic: content.achievements.filter((a) => a.rarity === 'Epic' && a.earned).length,
+      Legendary: content.achievements.filter((a) => a.rarity === 'Legendary' && a.earned).length,
     }),
     []
   )
 
   const filtered = useMemo(
     () =>
-      achievements.filter((a) => {
+      content.achievements.filter((a) => {
         if (cat !== 'All' && a.category !== cat) return false
         if (rarity !== 'All' && a.rarity !== rarity) return false
         return true
@@ -100,13 +101,13 @@ export function AchievementsPage() {
       >
       <motion.div variants={staggerItem(reduce)} transition={itemTransition(reduce)} className="flex items-center justify-end gap-2 px-5 pt-5">
         <ProgressRing
-          value={earnedCount / achievements.length}
+          value={earnedCount / content.achievements.length}
           size={44}
           stroke={4}
           valueClass="text-primary"
         >
           <span className="text-[10px] tabular font-medium">
-            {Math.round((earnedCount / achievements.length) * 100)}%
+            {Math.round((earnedCount / content.achievements.length) * 100)}%
           </span>
         </ProgressRing>
       </motion.div>

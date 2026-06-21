@@ -1,7 +1,7 @@
 'use client'
 
 import { useStore, type TabId } from '@/lib/store'
-import { videos, tests, SUBJECTS } from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
 import { useEffect, useMemo, useState } from 'react'
 import { Search, Hash, Play, FileText, BarChart3, CornerDownLeft, Compass } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -35,18 +35,18 @@ export function Spotlight() {
 
     if (!query) return pages.slice(0, 6)
 
-    const vidR: Result[] = videos
+    const content = useContent(); const vidR: Result[] = content.videos
       .filter((v) => v.title.toLowerCase().includes(query))
       .slice(0, 5)
       .map((v) => ({
         id: v.id,
         label: v.title,
-        sub: `Video · ${SUBJECTS.find((s) => s.id === v.subjectId)?.name}`,
+        sub: `Video · ${content.subjects.find((s) => s.id === v.subjectId)?.name}`,
         tab: 'library',
         icon: <Play className="size-4" />,
         group: 'Videos',
       }))
-    const testR: Result[] = tests
+    const testR: Result[] = content.tests
       .filter((t) => t.name.toLowerCase().includes(query))
       .slice(0, 4)
       .map((t) => ({

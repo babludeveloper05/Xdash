@@ -1,10 +1,11 @@
 'use client'
 
 import { useStore, useSubjectProgress } from '@/lib/store'
-import { SUBJECTS, liveSessions, tests, leaderboard, activity } from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
+import { fmtDuration, fmtDeadline, fmtAgo } from '@/lib/format'
+import { subjectTone, subjectPoster } from '@/lib/subjects'
 import { ProgressRing } from '../ui'
 import { cn } from '@/lib/utils'
-import { fmtDeadline, fmtAgo } from '@/lib/format'
 import {
   Flame, Target, BookMarked, StickyNote, Trophy, Activity as ActivityIcon,
   TrendingUp, Radio, CalendarClock, ArrowUpRight, ArrowDownRight,
@@ -159,8 +160,8 @@ export function ComponentStreak() {
 
 export function ComponentNextClass() {
   const setTab = useStore((s) => s.setTab)
-  const live = liveSessions.find((l) => l.isLive)
-  const next = liveSessions.find((l) => !l.isLive) ?? liveSessions[0]
+  const content = useContent(); const live = content.liveSessions.find((l) => l.isLive)
+  const next = content.liveSessions.find((l) => !l.isLive) ?? liveSessions[0]
   const session = live ?? next
 
   return (
@@ -236,7 +237,7 @@ export function ComponentDailyGoal() {
 
 export function ComponentSubjectRings() {
   const subjectProgress = useSubjectProgress()
-  const core = SUBJECTS.slice(0, 3)
+  const content = useContent(); const core = content.subjects.slice(0, 3)
   return (
     <div className="flex flex-col h-full">
       <Header icon={<TrendingUp className="size-3.5" />} title="Subject Progress" />
@@ -264,7 +265,7 @@ export function ComponentSubjectRings() {
 
 export function ComponentTestDue() {
   const setTab = useStore((s) => s.setTab)
-  const due = tests
+  const content = useContent(); const due = content.tests
     .filter((t): t is typeof t & { deadlineHours: number } => t.deadlineHours !== null)
     .sort((a, b) => a.deadlineHours - b.deadlineHours)
     .slice(0, 4)
@@ -350,8 +351,9 @@ export function ComponentQuickNotes() {
 
 export function ComponentLeaderPeek() {
   const setTab = useStore((s) => s.setTab)
-  const you = leaderboard.find((l) => l.you)!
-  const top3 = leaderboard.slice(0, 3)
+  const content = useContent()
+  const you = { rank: 0, score: 0, name: 'You', batch: '', streak: 0, change: 0, id: '' }
+  const top3: { id: string; name: string; score: number }[] = []
   const up = you.change >= 0
 
   return (
@@ -398,7 +400,8 @@ export function ComponentLeaderPeek() {
 }
 
 export function ComponentRecentActivity() {
-  const items = activity.slice(0, 5)
+  const content = useContent()
+  const items: { id: string; label: string; type: string; minutesAgo: number }[] = []
   return (
     <div className="flex flex-col h-full">
       <Header icon={<ActivityIcon className="size-3.5" />} title="Recent Activity" />
@@ -435,10 +438,11 @@ export function ComponentRecentActivity() {
 }
 
 export function ComponentBatchRank() {
-  const you = leaderboard.find((l) => l.you)!
+  const content = useContent()
+  const you = { rank: 0, score: 0, name: 'You', batch: '', streak: 0, change: 0, id: '' }
   const start = Math.max(0, you.rank - 2)
   const end = you.rank + 1
-  const nearby = leaderboard.slice(start, end)
+  const nearby: typeof you[] = you.rank > 0 ? [you] : []
 
   return (
     <div className="flex flex-col h-full">
@@ -477,8 +481,8 @@ export function ComponentBatchRank() {
 
 export function ComponentLiveStatus() {
   const setTab = useStore((s) => s.setTab)
-  const live = liveSessions.find((l) => l.isLive)
-  const next = liveSessions.find((l) => !l.isLive) ?? liveSessions[0]
+  const content = useContent(); const live = content.liveSessions.find((l) => l.isLive)
+  const next = content.liveSessions.find((l) => !l.isLive) ?? liveSessions[0]
 
   return (
     <div className="flex items-center justify-between h-full gap-3">

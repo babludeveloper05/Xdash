@@ -14,7 +14,7 @@
  */
 
 import { getTrackPack } from './content-packs'
-import type { SubjectId } from './mock-data'
+import type { SubjectId } from './types'
 import { subjectStyle } from './subjects'
 
 // --- Deterministic PRNG (same algorithm as mock-data.ts) ---

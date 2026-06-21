@@ -12,10 +12,8 @@ import {
 } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
 import { useStore, useSubjectProgress, useTotalHours } from '@/lib/store'
-import {
-  achievements, activity, leaderboard, SUBJECTS,
-  type Achievement,
-} from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
+import type { Achievement } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { fmtAgo } from '@/lib/format'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
@@ -54,8 +52,9 @@ export function ProfilePage() {
   const setTab = useStore((s) => s.setTab)
   const profile = useStore((s) => s.profile)
   const reduce = useReducedMotion() ?? false
-  const you = leaderboard.find((l) => l.you)
-  const earned = achievements.filter((a) => a.earned)
+  const content = useContent()
+  const you = { rank: 0, score: 0, name: 'You', batch: '', streak: 0, change: 0, id: '' }
+  const earned = content.achievements.filter((a) => a.earned)
   const testsTaken = history.length
 
   return (
@@ -115,7 +114,7 @@ export function ProfilePage() {
           <AchievementsPreview
             earned={earned}
             totalEarned={earned.length}
-            totalCount={achievements.length}
+            totalCount={content.achievements.length}
             onViewAll={() => setTab('achievements')}
           />
         </motion.div>
@@ -254,7 +253,7 @@ function SubjectMastery({
 }: {
   subjectProgress: Record<string, number>
 }) {
-  const subjects = SUBJECTS.slice(0, 6)
+  const subjects = content.subjects.slice(0, 6)
   const avg = subjects.reduce((acc, s) => acc + (subjectProgress[s.id] ?? 0), 0) / subjects.length
 
   return (
@@ -298,7 +297,7 @@ function SubjectMastery({
 /* ------------------------------------------------------------------ */
 
 function RecentActivity() {
-  const items = activity.slice(0, 9)
+  const items = [] as { id: string; label: string; type: string; minutesAgo: number }[]; // TODO: activity from API(0, 9)
   return (
     <GlassCard className="p-5 flex flex-col">
       <div className="flex items-center justify-between mb-4">

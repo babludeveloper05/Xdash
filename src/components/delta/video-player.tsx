@@ -1,7 +1,10 @@
 'use client'
 
 import { useStore } from '@/lib/store'
-import { videos, chapters, SUBJECTS, fmtDuration, type SubjectId } from '@/lib/mock-data'
+import { useContent } from '@/hooks/use-content'
+import { fmtDuration } from '@/lib/format'
+import type { SubjectId } from '@/lib/types'
+import { subjectPoster } from '@/lib/subjects'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import {
@@ -26,7 +29,7 @@ const SUBJECT_POSTER: Record<SubjectId, string> = {
 const SPEED_OPTIONS = [1, 1.25, 1.5, 1.75, 2]
 
 export function getVideo(id: string) {
-  return videos.find((v) => v.id === id)
+  const content = useContent(); return content.videos.find((v) => v.id === id)
 }
 
 function isTextTarget(el: EventTarget | null): boolean {
@@ -43,7 +46,7 @@ function chapterTitleOf(videoId: string | null): string {
   if (!videoId) return ''
   const v = getVideo(videoId)
   if (!v) return ''
-  return chapters.find((c) => c.id === v.chapterId)?.title ?? ''
+  return content.chapters.find((c) => c.id === v.chapterId)?.title ?? ''
 }
 
 /* ------------------------------------------------------------------ */
@@ -322,7 +325,7 @@ export function VideoLayer() {
   // Up-next queue: current video + next 5 from the same chapter.
   const queue = useMemo(() => {
     if (!theaterVideoId || !theater.video) return [] as typeof videos
-    const chapterVids = videos.filter((v) => v.chapterId === theater.video!.chapterId)
+    const chapterVids = content.videos.filter((v) => v.chapterId === theater.video!.chapterId)
     const idx = chapterVids.findIndex((v) => v.id === theaterVideoId)
     if (idx === -1) return chapterVids.slice(0, 6)
     const after = chapterVids.slice(idx)
@@ -417,7 +420,7 @@ export function VideoLayer() {
                   {/* Top-left subject + chapter label */}
                   <div className="absolute top-4 left-4 flex items-center gap-2 text-white/85">
                     <span className="px-2 py-1 rounded-md bg-black/30 backdrop-blur-sm text-[11px] font-medium uppercase tracking-wide">
-                      {SUBJECTS.find((s) => s.id === theater.video!.subjectId)?.name}
+                      {content.subjects.find((s) => s.id === theater.video!.subjectId)?.name}
                     </span>
                     <span className="hidden sm:inline px-2 py-1 rounded-md bg-black/30 backdrop-blur-sm text-[11px] text-white/70 max-w-[260px] truncate">
                       {chapterTitleOf(theaterVideoId)}

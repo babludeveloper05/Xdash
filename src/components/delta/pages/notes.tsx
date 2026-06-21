@@ -12,7 +12,7 @@ import {
 import { ScaledPage } from '@/components/delta/scaled-page'
 import { FilterBar, EmptyStateWrapper } from '@/components/delta/global'
 import { useStore } from '@/lib/store'
-import { type NoteItem } from '@/lib/mock-data'
+import { type NoteItem } from '@/lib/types'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 

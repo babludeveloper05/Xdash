@@ -4,15 +4,9 @@ import { useMemo } from 'react'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import {
-  videos,
-  chapters,
-  SUBJECTS,
-  notes as seedNotes,
-  testHistory as seedHistory,
-  doubts as seedDoubts,
   type NoteItem,
   type SubjectId,
-} from './mock-data'
+} from './types'
 
 export type TabId =
   | 'home'
@@ -103,46 +97,8 @@ export interface HistoryRow {
   trend: number
 }
 
-// --- seed deterministic initial progress ---
-// Each subject gets a distinct target completion so the dashboard reflects a
-// believable learning journey (earlier chapters finished first, mastery
-// declining across subjects) instead of an identical value everywhere.
-const SUBJECT_TARGET: Record<SubjectId, number> = {
-  physics: 0.71,
-  chemistry: 0.55,
-  maths: 0.48,
-  biology: 0.4,
-  cs: 0.33,
-  english: 0.25,
-}
-
-function seedProgress(): Record<string, VideoProgress> {
-  const map: Record<string, VideoProgress> = {}
-  SUBJECTS.forEach((sub) => {
-    const subVideos = videos
-      .filter((v) => v.subjectId === sub.id)
-      // earlier chapters (then earlier videos) are completed first
-      .sort((a, b) => {
-        const ca = chapters.find((c) => c.id === a.chapterId)!.number
-        const cb = chapters.find((c) => c.id === b.chapterId)!.number
-        return ca - cb || a.number - b.number
-      })
-    const target = SUBJECT_TARGET[sub.id] ?? 0.4
-    const completeCount = Math.round(subVideos.length * target)
-    // a small "in progress" frontier just past the completed boundary
-    const partialCount = Math.min(3, subVideos.length - completeCount)
-    subVideos.forEach((v, i) => {
-      if (i < completeCount) {
-        map[v.id] = { fraction: 1, completed: true }
-      } else if (i < completeCount + partialCount) {
-        map[v.id] = { fraction: 0.35, completed: false }
-      } else {
-        map[v.id] = { fraction: 0, completed: false }
-      }
-    })
-  })
-  return map
-}
+// --- No mock seed data — the app starts empty and populates from the API
+// when the user logs in, or from the content generator for offline/guest mode.
 
 const DEFAULT_COMPONENTS: ComponentState[] = [
   { id: 'w-greeting', type: 'greeting', x: 24, y: 24, w: 1124, h: 96, z: 1 },
@@ -355,13 +311,7 @@ export const useStore = create<DeltaState>()(
       setNotifications: (patch) =>
         set((s) => ({ notifications: { ...s.notifications, ...patch } })),
 
-      doubts: (seedDoubts as unknown as DoubtItem[]).map((d) => ({
-        ...d,
-        // Seed doubts carry no live answers (the old `answers: number` count is
-        // preserved as a legacy display hint via the answers array length when
-        // present, otherwise zero).
-        answers: [],
-      })),
+      doubts: [],
       addDoubt: ({ text, subject, asker }) => {
         const id = `doubt-${Date.now()}`
         const newDoubt: DoubtItem = {
@@ -423,7 +373,7 @@ export const useStore = create<DeltaState>()(
         }),
       hasVotedDoubt: (doubtId) => !!get().doubtVotes?.[doubtId],
 
-      videoProgress: seedProgress(),
+      videoProgress: {},
       setVideoProgress: (id, fraction) =>
         set((s) => ({
           videoProgress: {
@@ -440,32 +390,43 @@ export const useStore = create<DeltaState>()(
           hoursToday: s.hoursToday + 0.5,
         })),
       subjectProgress: () => {
+        // Compute from videoProgress — no mock data. Returns a map of
+        // videoId-prefix → completion ratio, keyed by subject id prefix.
         const vp = get().videoProgress
-        const out = {} as Record<SubjectId, number>
-        SUBJECTS.forEach((sub) => {
-          const subVideos = videos.filter((v) => v.subjectId === sub.id)
-          const done = subVideos.filter((v) => vp[v.id]?.completed).length
-          out[sub.id] = subVideos.length ? done / subVideos.length : 0
+        const out: Record<string, number> = {}
+        const bySubject: Record<string, { done: number; total: number }> = {}
+        Object.entries(vp).forEach(([vid, prog]) => {
+          const subjectId = vid.split('-')[0] // e.g. "physics-c1-v1" → "physics"
+          if (!bySubject[subjectId]) bySubject[subjectId] = { done: 0, total: 0 }
+          bySubject[subjectId].total++
+          if (prog.completed) bySubject[subjectId].done++
         })
-        return out
+        Object.entries(bySubject).forEach(([sid, { done, total }]) => {
+          out[sid] = total > 0 ? done / total : 0
+        })
+        return out as Record<SubjectId, number>
       },
       totalHours: () => {
+        // Compute from videoProgress — no mock data. Sums fraction × estimated
+        // duration (uses a default 40min/video estimate since we don't have the
+        // video catalog inline anymore).
         const vp = get().videoProgress
+        const ESTIMATED_DURATION_HRS = 40 / 60 // 40 min average
         return Math.round(
-          videos.reduce((acc, v) => acc + (vp[v.id]?.fraction ?? 0) * (v.durationSec / 3600), 0)
+          Object.values(vp).reduce((acc, p) => acc + (p.fraction ?? 0) * ESTIMATED_DURATION_HRS, 0)
         )
       },
 
-      streak: 23,
+      streak: 0,
       dailyGoalHours: 6,
-      hoursToday: 3.5,
+      hoursToday: 0,
       customCountdownDate: '2027-01-24',
       countdownLabel: 'Exam Day',
       setDailyGoal: (h) => set({ dailyGoalHours: h }),
       addStudyHours: (h) => set((s) => ({ hoursToday: Math.min(s.dailyGoalHours + 2, s.hoursToday + h) })),
       setCountdown: (label, date) => set({ countdownLabel: label, customCountdownDate: date }),
 
-      notes: seedNotes,
+      notes: [],
       addNote: (n) =>
         set((s) => ({
           notes: [{ ...n, id: `note-${Date.now()}`, updatedAt: Date.now() }, ...s.notes],
@@ -478,7 +439,7 @@ export const useStore = create<DeltaState>()(
       quickScratch: '',
       setQuickScratch: (str) => set({ quickScratch: str }),
 
-      history: seedHistory as HistoryRow[],
+      history: [],
       submitTest: (row) =>
         set((s) => ({
           history: [{ ...row, id: `hist-${Date.now()}`, daysAgo: 0 }, ...s.history],
