@@ -36,37 +36,6 @@ export function ScrollArea({
 }
 
 /* ------------------------------------------------------------------ */
-/*  <SectionHeader> — title + count + action row                       */
-/*                                                                     */
-/*  Replaces the hand-rolled "title + count + action" pattern repeated */
-/*  on Library, Tests, Doubts, Notes, Leaderboard, etc.                */
-/* ------------------------------------------------------------------ */
-
-export function SectionHeader({
-  title,
-  count,
-  action,
-  className,
-}: {
-  title: string
-  count?: ReactNode
-  action?: ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cn('flex items-center justify-between gap-4', className)}>
-      <div className="flex items-center gap-2.5 min-w-0">
-        <h2 className="text-sm font-semibold tracking-tight truncate">{title}</h2>
-        {count !== undefined && (
-          <span className="text-[11px] text-muted-foreground/80 tabular shrink-0 font-medium">{count}</span>
-        )}
-      </div>
-      {action && <div className="shrink-0">{action}</div>}
-    </div>
-  )
-}
-
-/* ------------------------------------------------------------------ */
 /*  <EmptyStateWrapper> — empty-branch + list                          */
 /*                                                                     */
 /*  Replaces the `{list.length === 0 ? <EmptyState/> : <list/>}`       */

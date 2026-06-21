@@ -91,9 +91,6 @@ const FALLBACK: SubjectStyle = {
  * Get the full style record for a subject. Accepts either a SubjectId or any
  * string (for custom user-defined subjects — returns the fallback).
  */
-export function subjectStyle(id: string): SubjectStyle {
-  return (SUBJECT_STYLES as Record<string, SubjectStyle>)[id] ?? FALLBACK
-}
 
 /** Solid accent color (oklch) for a subject. */
 export function subjectTone(id: string): string {
@@ -111,9 +108,6 @@ export function subjectGradient(id: string): string {
 }
 
 /** CSS radial glow string for a subject (inline style). */
-export function subjectGlow(id: string): string {
-  return subjectStyle(id).glow
-}
 
 /** Lucide icon for a subject. */
 export function subjectIcon(id: string): LucideIcon {

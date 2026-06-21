@@ -39,16 +39,6 @@ export interface Video {
   durationSec: number
 }
 
-export interface TestItem {
-  id: string
-  name: string
-  type: string
-  subject: string
-  questionCount: number
-  durationMin: number
-  deadlineHours: number | null
-  difficulty: 'Easy' | 'Moderate' | 'Hard'
-}
 
 export interface Question {
   id: string

@@ -34,39 +34,6 @@ export function GlassCard({
   )
 }
 
-export function PageHeader({
-  title,
-  subtitle,
-  icon,
-  actions,
-  className,
-}: {
-  title: string
-  subtitle?: string
-  icon?: ReactNode
-  actions?: ReactNode
-  className?: string
-}) {
-  return (
-    <div className={cn('flex items-end justify-between gap-4 px-5 py-4', className)}>
-      <div className="flex items-center gap-3 min-w-0">
-        {icon && (
-          <span className="grid place-items-center size-9 rounded-xl bg-primary/12 text-primary shrink-0 border border-primary/15">
-            {icon}
-          </span>
-        )}
-        <div className="min-w-0">
-          <h1 className="text-base font-semibold tracking-tight truncate">{title}</h1>
-          {subtitle && (
-            <p className="text-xs text-muted-foreground mt-0.5 truncate">{subtitle}</p>
-          )}
-        </div>
-      </div>
-      {actions && <div className="flex items-center gap-2 shrink-0">{actions}</div>}
-    </div>
-  )
-}
-
 export function Divider({ className }: { className?: string }) {
   return <div className={cn('hairline w-full', className)} />
 }
@@ -234,19 +201,6 @@ export function ProgressRing({
 }
 
 // Big metric numeral styled like the reference ( ,77,32% )
-export function StatNumber({ value, suffix = '%', className }: { value: number; suffix?: string; className?: string }) {
-  const whole = Math.floor(value)
-  const frac = Math.round((value - whole) * 100)
-  return (
-    <div className={cn('flex items-end font-sans tabular leading-none', className)}>
-      <span className="text-muted-foreground/50 text-[0.5em] mb-1.5 mr-0.5">,</span>
-      <span className="font-light tracking-tight">{whole}</span>
-      <span className="text-muted-foreground/60 text-[0.5em] mb-1.5 mx-0.5">,</span>
-      <span className="font-light tracking-tight">{String(frac).padStart(2, '0')}</span>
-      <span className="text-[0.42em] font-normal text-muted-foreground mb-1.5 ml-1">{suffix}</span>
-    </div>
-  )
-}
 
 export function MetricCard({
   label,
@@ -395,14 +349,6 @@ export function Avatar({ name, size = 36, className }: { name: string; size?: nu
 /*  Layout helpers                                                     */
 /* ------------------------------------------------------------------ */
 
-export function SectionShell({ children, className }: { children: ReactNode; className?: string }) {
-  // Each major section is a self-contained 16:9 canvas filling viewport width.
-  return (
-    <section className={cn('snap-section relative w-full shrink-0', className)} style={{ height: 'calc(100vh - 64px)' }}>
-      <div className="absolute inset-0 p-5">{children}</div>
-    </section>
-  )
-}
 
 export function EmptyState({ icon, title, hint, cta }: { icon: ReactNode; title: string; hint?: string; cta?: ReactNode }) {
   return (
@@ -419,39 +365,4 @@ export function EmptyState({ icon, title, hint, cta }: { icon: ReactNode; title:
 
 export function Skeleton({ className }: { className?: string }) {
   return <div className={cn('animate-pulse rounded-lg bg-white/5', className)} />
-}
-
-export function ListRow({
-  leading,
-  title,
-  subtitle,
-  trailing,
-  onClick,
-  className,
-}: {
-  leading?: ReactNode
-  title: ReactNode
-  subtitle?: ReactNode
-  trailing?: ReactNode
-  onClick?: () => void
-  className?: string
-}) {
-  const Comp = onClick ? 'button' : 'div'
-  return (
-    <Comp
-      onClick={onClick}
-      className={cn(
-        'flex items-center gap-3 w-full text-left rounded-xl px-3 py-2.5 transition-colors',
-        onClick && 'hover:bg-white/5',
-        className
-      )}
-    >
-      {leading && <span className="shrink-0">{leading}</span>}
-      <span className="flex-1 min-w-0">
-        <span className="block text-sm truncate">{title}</span>
-        {subtitle && <span className="block text-xs text-muted-foreground truncate mt-0.5">{subtitle}</span>}
-      </span>
-      {trailing && <span className="shrink-0 text-muted-foreground">{trailing}</span>}
-    </Comp>
-  )
 }
