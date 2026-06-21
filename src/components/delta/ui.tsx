@@ -208,7 +208,8 @@ export function ProgressRing({
 }) {
   const r = (size - stroke) / 2
   const c = 2 * Math.PI * r
-  const offset = c * (1 - Math.max(0, Math.min(1, value)))
+  const safeValue = isFinite(value) ? Math.max(0, Math.min(1, value)) : 0
+  const offset = c * (1 - safeValue)
   return (
     <div className={cn('relative grid place-items-center', className)} style={{ width: size, height: size }}>
       <svg width={size} height={size} className="-rotate-90">

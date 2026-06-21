@@ -71,7 +71,7 @@ export function AchievementsPage() {
   const [rarity, setRarity] = useState<RarityFilter>('All')
   const reduce = useReducedMotion() ?? false
 
-  const content = useContent(); const earnedCount = content.content.achievements.filter((a) => a.earned).length
+  const content = useContent(); const earnedCount = content.achievements.filter((a) => a.earned).length
   const rarityCounts = useMemo(
     () => ({
       Rare: content.achievements.filter((a) => a.rarity === 'Rare' && a.earned).length,

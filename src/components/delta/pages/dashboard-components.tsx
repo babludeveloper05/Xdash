@@ -161,26 +161,28 @@ export function ComponentStreak() {
 export function ComponentNextClass() {
   const setTab = useStore((s) => s.setTab)
   const content = useContent(); const live = content.liveSessions.find((l) => l.isLive)
-  const next = content.liveSessions.find((l) => !l.isLive) ?? liveSessions[0]
+  const next = content.liveSessions.find((l) => !l.isLive) ?? content.liveSessions[0]
   const session = live ?? next
 
   return (
     <div className="flex flex-col h-full">
       <Header icon={<CalendarClock className="size-3.5" />} title="Next Class" />
-      <p className="text-sm font-medium mt-0.5 truncate">{session.subject}</p>
-      <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 text-pretty leading-snug">
-        {session.topic}
-      </p>
-      <p className="text-[11px] text-muted-foreground/80 mt-1.5">{session.instructor}</p>
-      <div className="mt-auto flex items-center justify-between pt-2">
-        {live ? (
-          <span className="flex items-center gap-1.5 text-xs text-primary font-medium">
-            <span className="size-1.5 rounded-full bg-primary live-dot" />
-            Live now
-          </span>
+      {session ? (
+        <>
+          <p className="text-sm font-medium mt-0.5 truncate">{session.subject}</p>
+          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5 text-pretty leading-snug">
+            {session.topic}
+          </p>
+          <p className="text-[11px] text-muted-foreground/80 mt-1.5">{session.instructor}</p>
+          <div className="mt-auto flex items-center justify-between pt-2">
+            {live ? (
+              <span className="flex items-center gap-1.5 text-xs text-primary font-medium">
+                <span className="size-1.5 rounded-full bg-primary live-dot" />
+                Live now
+              </span>
         ) : (
           <span className="text-xs text-muted-foreground tabular">
-            in <span className="text-foreground/80">{next.startsInHours}h</span> 00m
+            in <span className="text-foreground/80">{next?.startsInHours ?? 0}h</span> 00m
           </span>
         )}
         <button
@@ -196,6 +198,10 @@ export function ComponentNextClass() {
           {live ? 'Join' : 'Remind'}
         </button>
       </div>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground mt-2">No classes scheduled</p>
+      )}
     </div>
   )
 }
@@ -482,7 +488,7 @@ export function ComponentBatchRank() {
 export function ComponentLiveStatus() {
   const setTab = useStore((s) => s.setTab)
   const content = useContent(); const live = content.liveSessions.find((l) => l.isLive)
-  const next = content.liveSessions.find((l) => !l.isLive) ?? liveSessions[0]
+  const next = content.liveSessions.find((l) => !l.isLive) ?? content.liveSessions[0]
 
   return (
     <div className="flex items-center justify-between h-full gap-3">
@@ -503,7 +509,9 @@ export function ComponentLiveStatus() {
         <p className="text-xs text-muted-foreground mt-0.5 truncate text-pretty">
           {live
             ? `${live.subject} · ${live.viewers.toLocaleString()} watching`
-            : `${next.subject} · in ${next.startsInHours}h`}
+            : next
+              ? `${next.subject} · in ${next.startsInHours}h`
+              : 'No sessions scheduled'}
         </p>
       </div>
       <button

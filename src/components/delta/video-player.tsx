@@ -28,8 +28,8 @@ const SUBJECT_POSTER: Record<SubjectId, string> = {
 
 const SPEED_OPTIONS = [1, 1.25, 1.5, 1.75, 2]
 
-export function getVideo(id: string) {
-  const content = useContent(); return content.videos.find((v) => v.id === id)
+export function getVideo(id: string, videos: { id: string; chapterId: string; subjectId: string; number: number; title: string; instructor: string; durationSec: number }[]) {
+  return videos.find((v) => v.id === id)
 }
 
 function isTextTarget(el: EventTarget | null): boolean {
@@ -42,22 +42,21 @@ function isTextTarget(el: EventTarget | null): boolean {
   )
 }
 
-function chapterTitleOf(videoId: string | null): string {
+function chapterTitleOf(videoId: string | null, videos: { id: string; chapterId: string }[], chapters: { id: string; title: string }[]): string {
   if (!videoId) return ''
-  const v = getVideo(videoId)
+  const v = videos.find((vid) => vid.id === videoId)
   if (!v) return ''
-  return content.chapters.find((c) => c.id === v.chapterId)?.title ?? ''
+  return chapters.find((c) => c.id === v.chapterId)?.title ?? ''
 }
 
 /* ------------------------------------------------------------------ */
 /*  Playback engine (UNCHANGED — still advances store progress)        */
 /* ------------------------------------------------------------------ */
 
-function usePlayback(videoId: string | null) {
+function usePlayback(videoId: string | null, video: { id: string; durationSec: number; chapterId: string; subjectId: string; number: number; title: string; instructor: string } | null) {
   const { videoProgress, setVideoProgress } = useStore()
   const [playing, setPlaying] = useState(true)
   const [speed, setSpeed] = useState(1)
-  const video = videoId ? getVideo(videoId) : null
   const fraction = videoId ? videoProgress[videoId]?.fraction ?? 0 : 0
   const accRef = useRef(0)
 
@@ -241,10 +240,13 @@ export function VideoLayer() {
     theaterVideoId, pipVideoId, closeTheater, enterPip, closePip,
     restoreFromPip, openTheater, videoProgress,
   } = useStore()
+  const content = useContent()
   const [maximized, setMaximized] = useState(false)
   const [muted, setMuted] = useState(false)
-  const theater = usePlayback(theaterVideoId)
-  const pip = usePlayback(pipVideoId)
+  const theaterVideo = theaterVideoId ? getVideo(theaterVideoId, content.videos) : null
+  const pipVideo = pipVideoId ? getVideo(pipVideoId, content.videos) : null
+  const theater = usePlayback(theaterVideoId, theaterVideo)
+  const pip = usePlayback(pipVideoId, pipVideo)
   const containerRef = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
 
@@ -304,7 +306,7 @@ export function VideoLayer() {
 
       if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
         e.preventDefault()
-        const v = getVideo(theaterVideoId)
+        const v = getVideo(theaterVideoId, content.videos)
         if (!v) return
         const cur = useStore.getState().videoProgress[theaterVideoId]?.fraction ?? 0
         const delta = e.key === 'ArrowRight' ? 10 : -10
@@ -423,7 +425,7 @@ export function VideoLayer() {
                       {content.subjects.find((s) => s.id === theater.video!.subjectId)?.name}
                     </span>
                     <span className="hidden sm:inline px-2 py-1 rounded-md bg-black/30 backdrop-blur-sm text-[11px] text-white/70 max-w-[260px] truncate">
-                      {chapterTitleOf(theaterVideoId)}
+                      {chapterTitleOf(theaterVideoId, content.videos, content.chapters)}
                     </span>
                   </div>
 
@@ -539,7 +541,7 @@ export function VideoLayer() {
                     <div className="min-w-0">
                       <p className="text-sm font-medium truncate">{theater.video.title}</p>
                       <p className="text-xs text-muted-foreground truncate mt-0.5">
-                        {theater.video.instructor} · {chapterTitleOf(theaterVideoId)}
+                        {theater.video.instructor} · {chapterTitleOf(theaterVideoId, content.videos, content.chapters)}
                       </p>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">

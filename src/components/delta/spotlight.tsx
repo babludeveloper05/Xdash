@@ -10,6 +10,7 @@ type Result = { id: string; label: string; sub: string; tab: TabId; icon: React.
 
 export function Spotlight() {
   const { spotlightOpen, setSpotlight, setTab, openTheater, notes } = useStore()
+  const content = useContent()
   const [q, setQ] = useState('')
   const [sel, setSel] = useState(0)
 
@@ -35,7 +36,7 @@ export function Spotlight() {
 
     if (!query) return pages.slice(0, 6)
 
-    const content = useContent(); const vidR: Result[] = content.videos
+    const vidR: Result[] = (content.videos || [])
       .filter((v) => v.title.toLowerCase().includes(query))
       .slice(0, 5)
       .map((v) => ({
