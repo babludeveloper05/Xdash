@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from config import CORS_ORIGINS
 from database import engine, Base
-from routers import auth, sync, notes, community
+from routers import auth, sync, notes, community, content
 
 # Create tables on startup (SQLite/Postgres compatible).
 Base.metadata.create_all(bind=engine)
@@ -43,6 +43,7 @@ app.include_router(auth.router, prefix="/api")
 app.include_router(sync.router, prefix="/api")
 app.include_router(notes.router, prefix="/api")
 app.include_router(community.router, prefix="/api")
+app.include_router(content.router, prefix="/api")
 
 
 @app.get("/")

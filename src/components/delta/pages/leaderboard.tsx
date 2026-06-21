@@ -1,12 +1,11 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Crown, TrendingUp, TrendingDown, Minus, Flame, Search, ArrowUpRight } from 'lucide-react'
 import { GlassCard, Pill, Avatar, PrimaryButton, EmptyState } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
 import { VirtualList } from '@/components/delta/virtual'
-import { leaderboard } from '@/lib/mock-data'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
@@ -15,12 +14,35 @@ type Scope = (typeof SCOPES)[number]
 
 const ROW_GRID = 'grid grid-cols-[1.75rem_1fr_3rem_4rem_4rem] @sm:grid-cols-[2.25rem_1fr_4.5rem_5rem_5rem] gap-3'
 
+interface LeaderEntry {
+  id: string; name: string; score: number; streak: number
+  change: number; batch: string; rank: number; you?: boolean
+}
+
 export function LeaderboardPage() {
   const [scope, setScope] = useState<Scope>('All')
   const [query, setQuery] = useState('')
+  const [apiData, setApiData] = useState<LeaderEntry[]>([])
+  const [loading, setLoading] = useState(true)
   const reduce = useReducedMotion() ?? false
 
-  const me = useMemo(() => leaderboard.find((l) => l.you)!, [])
+  // Fetch real leaderboard from the API
+  useEffect(() => {
+    fetch('/api/community/leaderboard')
+      .then(r => r.json())
+      .then(data => {
+        setApiData(data)
+        setLoading(false)
+      })
+      .catch(() => setLoading(false))
+  }, [])
+
+  // Use API data if available, mark "You" entry
+  const leaderboard = useMemo(() => {
+    return apiData.map(l => ({ ...l, you: l.name === 'You' }))
+  }, [apiData])
+
+  const me = useMemo(() => leaderboard.find((l) => l.you) ?? leaderboard[0] ?? { batch: '', name: 'You', score: 0, streak: 0, rank: 0, change: 0, id: '' }, [leaderboard])
 
   const list = useMemo(() => {
     let base = leaderboard

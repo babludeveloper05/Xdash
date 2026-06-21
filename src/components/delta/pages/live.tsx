@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   Radio, Users, Bell, BellRing, Calendar, Clock, Play, CheckCircle2,
@@ -17,16 +17,35 @@ import { cn } from '@/lib/utils'
 import { subjectGradient, subjectTone } from '@/lib/subjects'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 
+interface LiveSession {
+  id: string; subject: string; topic: string; instructor: string
+  startsInHours: number; viewers: number; isLive: boolean
+}
+
 export function LivePage() {
   const content = useContent()
-  const liveSessions = content.liveSessions
+  const [apiSessions, setApiSessions] = useState<LiveSession[]>([])
+  const reduce = useReducedMotion() ?? false
+
+  useEffect(() => {
+    fetch('/api/community/live')
+      .then(r => r.json())
+      .then(data => {
+        setApiSessions(data.map((s: { id: string; subject: string; topic: string; instructor: string; viewers: number; isLive: boolean }) => ({
+          id: s.id, subject: s.subject, topic: s.topic, instructor: s.instructor,
+          startsInHours: 0, viewers: s.viewers, isLive: s.isLive,
+        })))
+      })
+      .catch(() => {})
+  }, [])
+
+  const liveSessions = apiSessions.length > 0 ? apiSessions : content.liveSessions
   const live = liveSessions.find((s) => s.isLive) ?? null
   const upcoming = liveSessions.filter((s) => !s.isLive)
   const liveAttended = useStore((s) => s.liveAttended)
   const setLiveAttended = useStore((s) => s.setLiveAttended)
   const [reminders, setReminders] = useState<Record<string, boolean>>({})
   const [replay, setReplay] = useState(false)
-  const reduce = useReducedMotion() ?? false
 
   return (
     <ScaledPage>
