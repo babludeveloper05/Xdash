@@ -16,7 +16,7 @@ import { FilterBar } from '@/components/delta/global'
 import { DataCard, StatBlock } from '@/components/delta/data'
 import { useStore, type HistoryRow } from '@/lib/store'
 import { useContent } from '@/hooks/use-content'
-import type { GeneratedTest } from '@/lib/content-generator'
+import type { ContentTest as GeneratedTest } from "@/hooks/use-content"
 import { buildQuestions } from '@/lib/test-utils'
 import type { Question } from '@/lib/types'
 import { cn } from '@/lib/utils'

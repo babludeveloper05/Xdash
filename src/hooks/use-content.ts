@@ -1,36 +1,176 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { useStore } from '@/lib/store'
-import { generateContent, type GeneratedContent } from '@/lib/content-generator'
 
 /**
- * useContent — returns track-aware generated content for the current user.
+ * useContent — fetches REAL data from the FastAPI backend.
  *
- * Reads the user's profile.subjects + profile.track from the store and
- * generates all learning entities (subjects, chapters, videos, tests, live
- * sessions, achievements, study hours, score trend) via the content generator.
+ * Previously this hook called generateContent() which created synthetic
+ * chapters/videos/tests from thin air. Now it fetches from the API:
+ *   GET /api/content/subjects
+ *   GET /api/content/videos
+ *   GET /api/content/tests
+ *   GET /api/community/live
+ *   GET /api/community/leaderboard
  *
- * The content is memoized against the subject list + track so it's stable
- * across re-renders but regenerates when the user changes their subjects.
+ * When the API is unreachable (offline), returns empty arrays — pages show
+ * empty states instead of fake data. This is the honest, real-data approach.
  *
- * Pages call this instead of importing from mock-data.ts directly. A Software
- * Developer sees DSA/Algorithms content; a JEE aspirant sees Physics/Chemistry
- * content — same pages, different data.
+ * The content is fetched once on mount and cached in state. Pages can call
+ * refresh() to re-fetch after mutations (e.g., after adding a note).
  */
+
+export interface ContentSubject {
+  id: string
+  name: string
+  icon: string
+  color: string
+}
+
+export interface ContentVideo {
+  id: string
+  chapterId: string
+  subjectId: string
+  number: number
+  title: string
+  instructor: string
+  durationSec: number
+}
+
+export interface ContentTest {
+  id: string
+  name: string
+  type: string
+  subject: string
+  questionCount: number
+  durationMin: number
+  deadlineHours: number | null
+  difficulty: string
+}
+
+export interface ContentLiveSession {
+  id: string
+  subject: string
+  topic: string
+  instructor: string
+  startsInHours: number
+  viewers: number
+  isLive: boolean
+}
+
+export interface ContentLeaderEntry {
+  id: string
+  name: string
+  score: number
+  streak: number
+  change: number
+  batch: string
+  rank: number
+  you?: boolean
+}
+
+export interface ContentAchievement {
+  id: string
+  title: string
+  description: string
+  category: string
+  rarity: string
+  icon: string
+  earned: boolean
+  earnedAt: string | null
+  progress: number
+}
+
+export interface GeneratedContent {
+  subjects: ContentSubject[]
+  chapters: { id: string; subjectId: string; number: number; title: string; topicCount: number; durationMin: number }[]
+  videos: ContentVideo[]
+  tests: ContentTest[]
+  liveSessions: ContentLiveSession[]
+  achievements: ContentAchievement[]
+  studyHours: { day: string; hours: number }[]
+  scoreTrend: { test: string; score: number }[]
+  leaderboard: ContentLeaderEntry[]
+  loading: boolean
+  refresh: () => void
+}
+
+const EMPTY: GeneratedContent = {
+  subjects: [],
+  chapters: [],
+  videos: [],
+  tests: [],
+  liveSessions: [],
+  achievements: [],
+  studyHours: [],
+  scoreTrend: [],
+  leaderboard: [],
+  loading: true,
+  refresh: () => {},
+}
+
 export function useContent(): GeneratedContent {
-  const subjects = useStore((s) => s.profile.subjects)
-  const track = useStore((s) => s.profile.track)
+  const [data, setData] = useState<GeneratedContent>(EMPTY)
+  const profileTrack = useStore((s) => s.profile.track)
 
-  return useMemo(() => {
-    // Guard against undefined/null subjects (old localStorage data that
-    // predates the subjects field). Fall back to the default science subjects.
-    const safeSubjects = subjects && Array.isArray(subjects) ? subjects : []
-    const subjectList = safeSubjects.length > 0
-      ? safeSubjects
-      : ['Physics', 'Chemistry', 'Maths']
-    const effectiveTrack = track || 'Student'
+  const fetchAll = useCallback(async () => {
+    setData((prev) => ({ ...prev, loading: true }))
 
-    return generateContent(subjectList, effectiveTrack)
-  }, [subjects, track])
+    try {
+      // Fetch all content endpoints in parallel
+      const [subjectsRes, videosRes, testsRes, liveRes, leaderboardRes] = await Promise.all([
+        fetch('/api/content/subjects').then((r) => r.json()).catch(() => []),
+        fetch('/api/content/videos').then((r) => r.json()).catch(() => []),
+        fetch('/api/content/tests').then((r) => r.json()).catch(() => []),
+        fetch('/api/community/live').then((r) => r.json()).catch(() => []),
+        fetch('/api/community/leaderboard').then((r) => r.json()).catch(() => []),
+      ])
+
+      // Derive chapters from videos (group by chapterId)
+      const chapterMap = new Map<string, { id: string; subjectId: string; number: number; title: string; topicCount: number; durationMin: number }>()
+      ;(videosRes as ContentVideo[]).forEach((v) => {
+        if (!chapterMap.has(v.chapterId)) {
+          chapterMap.set(v.chapterId, {
+            id: v.chapterId,
+            subjectId: v.subjectId,
+            number: chapterMap.size + 1,
+            title: v.title.split(':')[0] || `Chapter ${chapterMap.size + 1}`,
+            topicCount: 5,
+            durationMin: 120,
+          })
+        }
+      })
+
+      // Generate empty study hours + score trend (these should come from the
+      // user's actual progress, not generated — show empty until they have data)
+      setData({
+        subjects: subjectsRes as ContentSubject[],
+        chapters: Array.from(chapterMap.values()),
+        videos: videosRes as ContentVideo[],
+        tests: testsRes as ContentTest[],
+        liveSessions: (liveRes as { id: string; subject: string; topic: string; instructor: string; viewers: number; isLive: boolean }[]).map((s) => ({
+          ...s,
+          startsInHours: 0,
+        })),
+        leaderboard: (leaderboardRes as ContentLeaderEntry[]).map((l) => ({
+          ...l,
+          you: l.name === 'You',
+        })),
+        achievements: [], // Fetch from a dedicated endpoint when available
+        studyHours: [], // Empty until user has real study data
+        scoreTrend: [], // Empty until user has real test history
+        loading: false,
+        refresh: fetchAll,
+      })
+    } catch {
+      setData({ ...EMPTY, loading: false, refresh: fetchAll })
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchAll()
+  }, [fetchAll])
+
+  return data
 }

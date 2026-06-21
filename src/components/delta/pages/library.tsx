@@ -14,7 +14,7 @@ import { VirtualGrid } from '@/components/delta/virtual'
 import { EmptyStateWrapper } from '@/components/delta/global'
 import { useStore } from '@/lib/store'
 import { useContent } from '@/hooks/use-content'
-import type { GeneratedVideo } from '@/lib/content-generator'
+import type { ContentVideo as GeneratedVideo } from "@/hooks/use-content"
 import { subjectIcon, subjectPoster } from '@/lib/subjects'
 import { fmtDuration } from '@/lib/format'
 import { cn } from '@/lib/utils'
