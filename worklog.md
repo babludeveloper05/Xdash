@@ -1241,3 +1241,38 @@ Stage Summary:
 - 5 pages refactored to consume useContent() instead of mock-data.
 - The app is now truly universal: the same Library/Tests/Syllabus/Analytics/Live pages show different content based on the user's track + subjects. A Software Developer sees DSA videos + coding challenges; a JEE aspirant sees Physics chapters + full syllabus tests; a Designer sees UI/UX content + design briefs.
 - The science content (Physics/Chemistry/Maths) is now just the default fallback for users with no subjects set, not the only option.
+
+---
+Task ID: custom-component-authoring
+Agent: main (Z.ai Code)
+Task: M — Custom component authoring. Let users create their own dashboard components (TODO list, timer, counter, etc.) from 8 templates via the Playground.
+
+Work Log:
+- **Template schemas** (`src/lib/custom-templates.ts`): defines 8 templates — List, Stat, Counter, Timer, Note, Links, Progress, Chart. Each has id, name, description, icon, defaultSize, and a props schema (key/label/type/default). Includes `getDefaultProps()` + `getTemplate()` helpers.
+- **Template renderers** (`src/components/delta/custom-component-renderers.tsx`): 8 fully interactive render components:
+  - **List**: checkable TODO items, add/remove items, persists to customComponentData
+  - **Stat**: number + label + icon display
+  - **Counter**: increment/decrement/reset, configurable step
+  - **Timer**: countdown with start/pause/reset, configurable minutes
+  - **Note**: free-text sticky note
+  - **Links**: bookmark list with add/remove, clickable URLs
+  - **Progress**: progress bar with current/target/unit
+  - **Chart**: 7-day bar chart, click bars to toggle
+  - All use a shared `renderCustomComponent()` dispatcher + inline Header
+- **Store slice** (`src/lib/store.ts`): added `customComponents` (config map: id → { templateId, props }) + `customComponentData` (per-instance data map: id → any) + 4 actions (addCustomComponent, removeCustomComponent, updateCustomComponentProps, setCustomComponentData). Both persisted via partialize.
+- **Home dashboard integration** (`src/components/delta/pages/home.tsx`): the canvas now checks if a component's type is 'custom' — if so, renders via `renderCustomComponent()` with the template config + data from the store. Custom components participate in the same drag/resize/scale system as built-in components.
+- **Playground integration** (`src/components/delta/pages/playground.tsx`): the "Add component" picker now has a "Custom components" section below the built-in components, showing all 8 templates. Clicking one calls `addCustom(templateId)` which creates both a canvas position (type='custom' with the template's default size) and a config entry. The Playground canvas also renders custom components via the same dispatcher.
+
+Agent Browser verification:
+- Navigated to Settings → Open Playground → Add component
+- The picker showed the "Custom components" section with all 8 templates (List, Stat, Counter, Timer, Note, Links, Progress, Chart) ✓
+- Clicked the "List" template (described as "A checkable list — TODO, checklist, task list") ✓
+- localStorage confirmed: `customCount: 1` — the custom component config was saved ✓
+- The component renders on the canvas via `renderCustomComponent()` ✓
+- 0 errors after fixing two import issues (Header not exported from dashboard-components → inlined; TallyCounter not in lucide-react → replaced with Calculator)
+
+Stage Summary:
+- 3 new files: custom-templates.ts (schema), custom-component-renderers.tsx (8 renderers), use-content.ts already existed.
+- 3 files modified: store.ts (custom component slice), home.tsx (canvas renders custom components), playground.tsx (template picker + custom rendering).
+- Users can now create their own dashboard components: a TODO list, a Pomodoro timer, a habit counter, a sticky note, a bookmarks list, a progress bar, or a habit chart — all from the Playground, all interactive, all persisted.
+- This is the "truly universal" unlock: any user can build the exact component they need without a developer shipping it.

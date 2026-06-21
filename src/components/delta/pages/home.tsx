@@ -7,12 +7,16 @@ import { GlassCard, PrimaryButton, EmptyState } from '../ui'
 import { Sparkles, LayoutGrid, Pencil } from 'lucide-react'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
 import { useCanvasFit } from '@/hooks/use-canvas-fit'
+import { renderCustomComponent } from '../custom-component-renderers'
 
 const CANVAS_WIDTH = 1448
 
 export function HomePage() {
   const components = useStore((s) => s.components)
   const setTab = useStore((s) => s.setTab)
+  const customComponents = useStore((s) => s.customComponents)
+  const customComponentData = useStore((s) => s.customComponentData)
+  const setCustomComponentData = useStore((s) => s.setCustomComponentData)
   const reduce = useReducedMotion() ?? false
   const canvasHeight = components.reduce((m, w) => Math.max(m, w.y + w.h), 0) + 56
   const { ref, scale } = useCanvasFit(CANVAS_WIDTH, canvasHeight, 32)
@@ -70,7 +74,14 @@ export function HomePage() {
                   }}
                 >
                   <div className="h-full overflow-hidden">
-                    {COMPONENT_REGISTRY[w.type]?.render()}
+                    {w.type === 'custom' && customComponents[w.id]
+                      ? renderCustomComponent({
+                          templateId: customComponents[w.id].templateId,
+                          props: customComponents[w.id].props,
+                          data: customComponentData[w.id],
+                          setData: (d) => setCustomComponentData(w.id, d),
+                        })
+                      : COMPONENT_REGISTRY[w.type]?.render()}
                   </div>
                   <button
                     onClick={() => setTab('playground')}

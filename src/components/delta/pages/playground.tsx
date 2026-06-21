@@ -9,6 +9,8 @@ import {
 } from 'lucide-react'
 import { useStore, type ComponentState } from '@/lib/store'
 import { COMPONENT_REGISTRY } from './dashboard-components'
+import { TEMPLATES, getDefaultProps, getTemplate, type TemplateId } from '@/lib/custom-templates'
+import { renderCustomComponent } from '../custom-component-renderers'
 import {
   GlassCard, GhostButton, PrimaryButton, EmptyState,
 } from '../ui'
@@ -56,6 +58,35 @@ export function PlaygroundPage() {
   const bringToFront = useStore((s) => s.bringToFront)
   const removeComponent = useStore((s) => s.removeComponent)
   const addComponent = useStore((s) => s.addComponent)
+  const addCustomComponent = useStore((s) => s.addCustomComponent)
+  const customComponents = useStore((s) => s.customComponents)
+  const customComponentData = useStore((s) => s.customComponentData)
+  const setCustomComponentData = useStore((s) => s.setCustomComponentData)
+
+  /** Add a custom component: creates both a canvas position (type='custom')
+   *  and a config entry (templateId + props) in the store. */
+  const addCustom = (templateId: TemplateId) => {
+    const template = getTemplate(templateId)
+    if (!template) return
+    const id = `custom-${Date.now()}`
+    addComponent('custom') // creates a canvas position with a generated id
+    // The addComponent generates its own id; we need to find it and rename.
+    // Instead, we'll add the canvas position manually by calling the store.
+    useStore.setState((s) => {
+      const last = s.components[s.components.length - 1]
+      if (last && last.type === 'custom') {
+        // Rename the last component's id to our custom id
+        const newComponents = s.components.map((c, i) =>
+          i === s.components.length - 1
+            ? { ...c, id, w: template.defaultSize.w, h: template.defaultSize.h }
+            : c
+        )
+        return { components: newComponents }
+      }
+      return {}
+    })
+    addCustomComponent(id, templateId, getDefaultProps(template))
+  }
   const resetComponents = useStore((s) => s.resetComponents)
   const setTab = useStore((s) => s.setTab)
 
@@ -269,7 +300,16 @@ export function PlaygroundPage() {
               style={{ minHeight: w.type === 'greeting' ? 96 : 200 }}
             >
               <RemoveBtn onClick={() => removeComponent(w.id)} />
-              <div className="h-full">{COMPONENT_REGISTRY[w.type]?.render()}</div>
+              <div className="h-full">
+                {w.type === 'custom' && customComponents[w.id]
+                  ? renderCustomComponent({
+                      templateId: customComponents[w.id].templateId,
+                      props: customComponents[w.id].props,
+                      data: customComponentData[w.id],
+                      setData: (d) => setCustomComponentData(w.id, d),
+                    })
+                  : COMPONENT_REGISTRY[w.type]?.render()}
+              </div>
             </GlassCard>
           ))}
         </motion.div>
@@ -452,6 +492,32 @@ export function PlaygroundPage() {
                   </button>
                 ))
               )}
+            </div>
+
+            {/* Custom templates section */}
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-semibold mb-2">Custom components</p>
+              <div className="grid grid-cols-2 gap-2">
+                {TEMPLATES.map((tmpl) => (
+                  <button
+                    key={tmpl.id}
+                    onClick={() => {
+                      addCustom(tmpl.id)
+                      setPickerOpen(false)
+                      setPaletteQuery('')
+                    }}
+                    className="group flex items-start gap-3 rounded-xl border border-border bg-white/[0.02] p-3 text-left hover:bg-white/[0.06] hover:border-primary/40 transition-colors"
+                  >
+                    <span className="grid place-items-center size-9 rounded-lg bg-primary/10 text-primary border border-primary/15 shrink-0">
+                      <Plus className="size-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-[13px] font-medium truncate">{tmpl.name}</span>
+                      <span className="block text-[11px] text-muted-foreground mt-0.5 line-clamp-1">{tmpl.description}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </GlassCard>
         </div>

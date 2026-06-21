@@ -282,6 +282,16 @@ interface DeltaState {
   // live
   liveAttended: boolean
   setLiveAttended: (v: boolean) => void
+
+  // custom components (user-authored via templates)
+  /** Custom component configs: { id, templateId, props } keyed by component id. */
+  customComponents: Record<string, { templateId: string; props: Record<string, unknown> }>
+  /** Per-instance data for custom components (TODO items, counter values, etc.). */
+  customComponentData: Record<string, unknown>
+  addCustomComponent: (id: string, templateId: string, props: Record<string, unknown>) => void
+  removeCustomComponent: (id: string) => void
+  updateCustomComponentProps: (id: string, props: Record<string, unknown>) => void
+  setCustomComponentData: (id: string, data: unknown) => void
 }
 
 export const useStore = create<DeltaState>()(
@@ -508,6 +518,30 @@ export const useStore = create<DeltaState>()(
       liveAttended: false,
       setLiveAttended: (v) => set({ liveAttended: v }),
 
+      customComponents: {},
+      customComponentData: {},
+      addCustomComponent: (id, templateId, props) =>
+        set((s) => ({
+          customComponents: { ...s.customComponents, [id]: { templateId, props } },
+        })),
+      removeCustomComponent: (id) =>
+        set((s) => {
+          const { [id]: _, ...rest } = s.customComponents
+          const { [id]: __, ...restData } = s.customComponentData
+          return { customComponents: rest, customComponentData: restData }
+        }),
+      updateCustomComponentProps: (id, props) =>
+        set((s) => ({
+          customComponents: {
+            ...s.customComponents,
+            [id]: { ...s.customComponents[id], props: { ...s.customComponents[id]?.props, ...props } },
+          },
+        })),
+      setCustomComponentData: (id, data) =>
+        set((s) => ({
+          customComponentData: { ...s.customComponentData, [id]: data },
+        })),
+
       doubtVotes: {},
     }),
     {
@@ -532,6 +566,8 @@ export const useStore = create<DeltaState>()(
         doubtVotes: s.doubtVotes,
         enabledTabs: s.enabledTabs,
         appearance: s.appearance,
+        customComponents: s.customComponents,
+        customComponentData: s.customComponentData,
       }),
     }
   )
