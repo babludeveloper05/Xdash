@@ -23,10 +23,11 @@ export function useContent(): GeneratedContent {
   const track = useStore((s) => s.profile.track)
 
   return useMemo(() => {
-    // Fall back to the default science subjects if the user has none set
-    // (pre-onboarding or legacy users).
-    const subjectList = subjects.length > 0
-      ? subjects
+    // Guard against undefined/null subjects (old localStorage data that
+    // predates the subjects field). Fall back to the default science subjects.
+    const safeSubjects = subjects && Array.isArray(subjects) ? subjects : []
+    const subjectList = safeSubjects.length > 0
+      ? safeSubjects
       : ['Physics', 'Chemistry', 'Maths']
     const effectiveTrack = track || 'Student'
 
