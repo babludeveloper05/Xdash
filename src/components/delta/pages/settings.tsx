@@ -4,15 +4,34 @@ import { useState } from 'react'
 import { motion, useReducedMotion } from 'framer-motion'
 import {
   User, Bell, Target, RotateCcw, Check, Trash2, Sparkles,
-  Calendar, AlertTriangle, Palette, Crown,
+  Calendar, AlertTriangle, Palette, Home, Library, FileText,
+  StickyNote, Radio, Activity, Medal, Award, Layers, MessageCircleQuestion,
+  LayoutDashboard, Settings as SettingsIcon,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import {
-  GlassCard, Toggle, Avatar, PrimaryButton, GhostButton, Badge,
+  GlassCard, Toggle, Avatar, PrimaryButton, GhostButton,
 } from '@/components/delta/ui'
 import { ScaledPage } from '@/components/delta/scaled-page'
-import { useStore, type UserProfile } from '@/lib/store'
+import { useStore, type UserProfile, type TabId } from '@/lib/store'
 import { cn } from '@/lib/utils'
 import { staggerContainer, staggerItem, itemTransition } from '@/lib/motion'
+
+const PAGE_OPTIONS: { id: TabId; label: string; icon: LucideIcon; locked?: boolean }[] = [
+  { id: 'home', label: 'Home', icon: Home, locked: true },
+  { id: 'library', label: 'Library', icon: Library },
+  { id: 'tests', label: 'Tests', icon: FileText },
+  { id: 'notes', label: 'Notes', icon: StickyNote },
+  { id: 'live', label: 'Live', icon: Radio },
+  { id: 'analytics', label: 'Analytics', icon: Activity },
+  { id: 'leaderboard', label: 'Leaderboard', icon: Medal },
+  { id: 'achievements', label: 'Achievements', icon: Award },
+  { id: 'syllabus', label: 'Syllabus', icon: Layers },
+  { id: 'doubts', label: 'Doubts', icon: MessageCircleQuestion },
+  { id: 'playground', label: 'Playground', icon: LayoutDashboard },
+  { id: 'profile', label: 'Profile', icon: User, locked: true },
+  { id: 'settings', label: 'Settings', icon: SettingsIcon, locked: true },
+]
 
 export function SettingsPage() {
   const dailyGoalHours = useStore((s) => s.dailyGoalHours)
@@ -26,6 +45,10 @@ export function SettingsPage() {
   const setProfile = useStore((s) => s.setProfile)
   const notifications = useStore((s) => s.notifications)
   const setNotifications = useStore((s) => s.setNotifications)
+  const appearance = useStore((s) => s.appearance)
+  const setAppearance = useStore((s) => s.setAppearance)
+  const enabledTabs = useStore((s) => s.enabledTabs)
+  const setEnabledTabs = useStore((s) => s.setEnabledTabs)
 
   // Account section: edit a local draft, commit to the store only on Save.
   // Previously the fields were uncontrolled (defaultValue + onBlur) and the
@@ -273,22 +296,124 @@ export function SettingsPage() {
         <SectionCard
           icon={<Palette className="size-4" />}
           title="Appearance"
-          description="Theme and dashboard preferences"
+          description="Accent color, density, glassmorphism & nav pages"
         >
-          <div className="space-y-4">
-            <div className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-border p-3">
-              <span className="grid place-items-center size-10 rounded-lg bg-amber-500/15 text-amber-300 border border-amber-500/20 shrink-0">
-                <Crown className="size-5" />
-              </span>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium">Warm Obsidian (Dark)</p>
-                <p className="text-[11px] text-muted-foreground text-pretty">
-                  The signature Delta theme — amber accents on a warm dark canvas.
-                  Light mode is on the roadmap.
-                </p>
+          <div className="space-y-5">
+            {/* Accent hue */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm text-muted-foreground">Accent color</span>
+                <span
+                  className="size-6 rounded-full border-2 border-white/20 transition-all"
+                  style={{ background: `oklch(0.74 0.135 ${appearance.accentHue})` }}
+                  aria-hidden
+                />
               </div>
-              <Badge tone="primary">Active</Badge>
+              <input
+                type="range"
+                min={0}
+                max={360}
+                value={appearance.accentHue}
+                onChange={(e) => setAppearance({ accentHue: Number(e.target.value) })}
+                className="w-full"
+                style={{ accentColor: `oklch(0.74 0.135 ${appearance.accentHue})` }}
+                aria-label="Accent color hue"
+              />
+              <div
+                className="h-2 rounded-full mt-2"
+                style={{ background: 'linear-gradient(to right, oklch(0.74 0.135 0), oklch(0.74 0.135 60), oklch(0.74 0.135 120), oklch(0.74 0.135 180), oklch(0.74 0.135 240), oklch(0.74 0.135 300), oklch(0.74 0.135 360))' }}
+                aria-hidden
+              />
+              <div className="flex justify-between mt-1.5 text-[10px] text-muted-foreground/70 tabular">
+                <span>0°</span><span>180°</span><span>360°</span>
+              </div>
             </div>
+
+            {/* Density */}
+            <div>
+              <span className="text-sm text-muted-foreground block mb-2">Layout density</span>
+              <div className="grid grid-cols-2 gap-2">
+                {(['comfortable', 'compact'] as const).map((d) => (
+                  <button
+                    key={d}
+                    onClick={() => setAppearance({ density: d })}
+                    className={cn(
+                      'rounded-xl border py-2.5 px-3 text-sm font-medium transition-all capitalize',
+                      appearance.density === d
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                    )}
+                  >
+                    {d}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Glass strength */}
+            <div>
+              <span className="text-sm text-muted-foreground block mb-2">Glassmorphism</span>
+              <div className="grid grid-cols-3 gap-2">
+                {(['subtle', 'medium', 'strong'] as const).map((g) => (
+                  <button
+                    key={g}
+                    onClick={() => setAppearance({ glass: g })}
+                    className={cn(
+                      'rounded-xl border py-2.5 px-3 text-sm font-medium transition-all capitalize',
+                      appearance.glass === g
+                        ? 'border-primary bg-primary/10 text-foreground'
+                        : 'border-border bg-white/5 text-muted-foreground hover:bg-white/10 hover:text-foreground'
+                    )}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Nav pages */}
+            <div>
+              <span className="text-sm text-muted-foreground block mb-2">Navigation pages</span>
+              <div className="grid grid-cols-2 gap-2">
+                {PAGE_OPTIONS.map((p) => {
+                  const on = enabledTabs.includes(p.id)
+                  const Icon = p.icon
+                  const locked = p.locked
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        if (locked) return
+                        setEnabledTabs(
+                          on ? enabledTabs.filter((x) => x !== p.id) : [...enabledTabs, p.id]
+                        )
+                      }}
+                      disabled={locked}
+                      className={cn(
+                        'rounded-xl border p-2.5 text-left transition-all flex items-center gap-2',
+                        on
+                          ? 'border-primary bg-primary/10'
+                          : 'border-border bg-white/5 hover:bg-white/10 hover:border-white/15',
+                        locked && 'opacity-60 cursor-not-allowed'
+                      )}
+                    >
+                      <Icon className="size-3.5 text-primary shrink-0" />
+                      <span className="text-xs font-medium flex-1">{p.label}</span>
+                      {locked ? (
+                        <span className="text-[9px] uppercase tracking-wide text-muted-foreground">Always</span>
+                      ) : on ? (
+                        <Check className="size-3 text-primary" />
+                      ) : null}
+                    </button>
+                  )
+                })}
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-2">
+                {enabledTabs.length} of {PAGE_OPTIONS.length} pages enabled. Changes apply instantly.
+              </p>
+            </div>
+
+            {/* Playground link */}
             <Row
               label="Customize dashboard"
               hint="Add components, drag, resize & arrange your home"

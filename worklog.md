@@ -1122,3 +1122,28 @@ Stage Summary:
 - The full offline-first auth + sync loop works: register/login → cookie → sync pushes local Zustand state to FastAPI → data persists in SQLite (Postgres-ready).
 - Guest mode (no login) stays fully local — no sync, data in localStorage only.
 - Both backend services (FastAPI 8000, Socket.io 3003) running persistently via start-all.sh.
+
+---
+Task ID: settings-appearance
+Agent: main (Z.ai Code)
+Task: F — Add an Appearance section to Settings so users can change accent color, density, glassmorphism, and nav pages after onboarding (previously only settable during onboarding).
+
+Work Log:
+- Added `appearance` + `enabledTabs` store subscriptions to SettingsPage.
+- Rewrote the static Appearance SectionCard (was just a "Warm Obsidian (Dark)" info card) into a full interactive section:
+  - **Accent color**: hue slider (0–360°) with live swatch + rainbow gradient preview. Changes apply instantly via ThemeVars (the whole app recolors).
+  - **Layout density**: comfortable/compact toggle.
+  - **Glassmorphism**: subtle/medium/strong toggle.
+  - **Navigation pages**: toggle grid of all 13 pages (Home/Profile/Settings locked). Changes apply instantly to TopNav.
+- Cleaned up unused imports (Crown, Badge).
+
+Agent Browser verification:
+- Settings → Appearance section shows accent slider (hue 62), density, glassmorphism, nav pages ✓
+- Changed accent hue to 200 → `--primary` became `oklch(0.74 0.135 200)` (blue) instantly ✓
+- Toggled Live page off → nav no longer shows "Live" (9 tabs instead of 10) ✓
+- 0 errors.
+
+Stage Summary:
+- 1 file modified: settings.tsx (Appearance section rewritten + store subscriptions added).
+- Users can now change their theme (accent/density/glass) and nav pages at any time from Settings — no need to re-run onboarding.
+- All changes apply instantly via the existing ThemeVars + TopNav infrastructure.
