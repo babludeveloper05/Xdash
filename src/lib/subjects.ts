@@ -91,6 +91,9 @@ const FALLBACK: SubjectStyle = {
  * Get the full style record for a subject. Accepts either a SubjectId or any
  * string (for custom user-defined subjects — returns the fallback).
  */
+function subjectStyle(id: string): SubjectStyle {
+  return (SUBJECT_STYLES as Record<string, SubjectStyle>)[id] ?? FALLBACK
+}
 
 /** Solid accent color (oklch) for a subject. */
 export function subjectTone(id: string): string {
